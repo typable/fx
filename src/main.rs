@@ -1,10 +1,12 @@
 use console::Color;
 use console::Key;
 use console::Term;
+use std::env;
 use std::fs;
 use std::io;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process;
 
 macro_rules! color {
     ($str:expr, $fg:expr) => {
@@ -23,12 +25,20 @@ macro_rules! pad {
 
 #[derive(Debug)]
 struct State {
+    // The current directory path
     path: PathBuf,
+    // The current index in the file list
     index: usize,
+    /// The list of files in the current directory
     list: Vec<Entry>,
+    // The count of printed lines to the screen
     lines: usize,
+    // The offset for printing the file list
     offset: usize,
+    // The list of selected files
     selected: Vec<usize>,
+    // The info message to display on screen
+    message: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,6 +54,7 @@ struct Entry {
 }
 
 impl Entry {
+    /// Returns the corresponding color for the file type
     fn to_color(&self) -> Color {
         if self.file_name.starts_with(".") {
             return Color::Color256(247);
@@ -56,11 +67,27 @@ fn main() {
     init_ui().unwrap();
 }
 
+/// Initializes the terminal user interface
 fn init_ui() -> io::Result<()> {
     let term = Term::stdout();
+    let mut arguments = env::args();
+    arguments.next();
+    let current_dir = match arguments.next() {
+        Some(dir) => dir,
+        None => "./".into(),
+    };
+    let path = match fs::canonicalize(&Path::new(&current_dir)) {
+        Ok(path) => path,
+        Err(_) => {
+            term.write_line(color!(
+                &format!("Invalid arguments! '{}' is not a valid path!", &current_dir),
+                Color::Red
+            ))?;
+            process::exit(1);
+        }
+    };
     term.hide_cursor()?;
     term.clear_screen()?;
-    let path = fs::canonicalize(&Path::new("/home/andreas"))?;
     let mut state = State {
         path,
         index: 0,
@@ -68,6 +95,7 @@ fn init_ui() -> io::Result<()> {
         lines: 0,
         offset: 0,
         selected: Vec::new(),
+        message: None,
     };
     let mut prev_key = None;
     read_dir(&mut state)?;
@@ -80,7 +108,7 @@ fn init_ui() -> io::Result<()> {
             Key::Char('j') => {
                 if state.list.len() > 0 && state.index < state.list.len() - 1 {
                     state.index += 1;
-                    if state.index >= height as usize + state.offset - 4 - 5 {
+                    if state.index >= state.lines + state.offset - 5 - 5 {
                         state.offset += 1;
                     }
                     print(&term, &mut state)?;
@@ -100,6 +128,7 @@ fn init_ui() -> io::Result<()> {
                     state.path = parent.to_path_buf();
                     state.index = 0;
                     state.offset = 0;
+                    state.selected.clear();
                     read_dir(&mut state)?;
                     print(&term, &mut state)?;
                 }
@@ -111,6 +140,7 @@ fn init_ui() -> io::Result<()> {
                         state.path.push(&entry.file_name);
                         state.index = 0;
                         state.offset = 0;
+                        state.selected.clear();
                         read_dir(&mut state)?;
                         print(&term, &mut state)?;
                     }
@@ -152,7 +182,22 @@ fn init_ui() -> io::Result<()> {
             }
             Key::Char('x') => {
                 if state.list.len() > 0 {
-                    state.selected.push(state.index);
+                    let index = state.selected.iter().position(|i| i == &state.index);
+                    match index {
+                        Some(index) => {
+                            state.selected.remove(index);
+                        }
+                        None => {
+                            state.selected.push(state.index);
+                        }
+                    }
+                    match state.selected.len() {
+                        0 => state.message = None,
+                        _ => {
+                            state.message =
+                                Some(format!("   {} items selected", state.selected.len()))
+                        }
+                    }
                     print(&term, &mut state)?;
                 }
             }
@@ -165,6 +210,7 @@ fn init_ui() -> io::Result<()> {
     Ok(())
 }
 
+/// Reads the current directory
 fn read_dir(state: &mut State) -> io::Result<()> {
     let mut dirs = Vec::new();
     let mut files = Vec::new();
@@ -189,33 +235,55 @@ fn read_dir(state: &mut State) -> io::Result<()> {
     Ok(())
 }
 
+/// Prints the current directory entries to the screen
 fn print(term: &Term, state: &mut State) -> io::Result<()> {
     let (height, _) = term.size();
+    let lines = height as usize - 1;
     let path = state.path.display().to_string();
     term.clear_last_lines(state.lines)?;
-    term.write_line("")?;
-    term.write_line(&format!("   {}", path))?;
-    term.write_line("")?;
-    state.lines = 3;
-    for (i, entry) in state.list.iter().enumerate() {
-        if i < state.offset {
+    for i in 0..lines {
+        if i == 1 {
+            term.write_line(&format!("   {}", path))?;
             continue;
         }
-        if i == height as usize + state.offset - 4 {
-            break;
+        if i == 3 && state.offset > 0 {
+            term.write_line("   ...")?;
+            continue;
         }
-        let pointer = if state.index == i { ">" } else { " " };
-        let color = match entry.kind {
-            EntryKind::Dir => Color::Blue,
-            EntryKind::File => entry.to_color(),
-        };
-        let value = match state.selected.contains(&i) {
-            true => color!(pad!(&entry.file_name, 50), Color::Black, color).to_string(),
-            false => color!(pad!(&entry.file_name, 50), color).to_string(),
-        };
-        term.write_line(&format!(" {} {}", pointer, value))?;
-        state.lines += 1;
+        if i == lines - 3 {
+            let index = i - 3 + state.offset;
+            if state.list.len() > index {
+                term.write_line("   ...")?;
+                continue;
+            }
+        }
+        if i > 2 && i < lines - 2 {
+            let index = i - 3 + state.offset;
+            if state.list.len() > index {
+                let entry = &state.list[index];
+                let pointer = if state.index == index { ">" } else { " " };
+                let color = match entry.kind {
+                    EntryKind::Dir => Color::Blue,
+                    EntryKind::File => entry.to_color(),
+                };
+                let value = match state.selected.contains(&index) {
+                    true => color!(pad!(&entry.file_name, 50), Color::Black, color).to_string(),
+                    false => color!(pad!(&entry.file_name, 50), color).to_string(),
+                };
+                term.write_line(&format!(" {} {}", pointer, value))?;
+                continue;
+            }
+        }
+        if i == lines - 1 {
+            match &state.message {
+                Some(message) => term.write_line(&message)?,
+                None => term.write_line("")?,
+            }
+            continue;
+        }
+        term.write_line("")?;
     }
+    state.lines = lines;
     term.hide_cursor()?;
     Ok(())
 }
