@@ -1,6 +1,7 @@
 use console::Color;
 use console::Key;
 use console::Term;
+use regex::Regex;
 use std::env;
 use std::fs;
 use std::io;
@@ -23,8 +24,16 @@ macro_rules! pad {
     };
 }
 
+#[derive(Debug, PartialEq)]
+enum Mode {
+    Normal,
+    Search,
+}
+
 #[derive(Debug)]
 struct State {
+    // The current interaction mode
+    mode: Mode,
     // The current directory path
     path: PathBuf,
     // The current index in the file list
@@ -39,6 +48,24 @@ struct State {
     selected: Vec<usize>,
     // The info message to display on screen
     message: Option<String>,
+    // The search for filtering the file list
+    search: Option<String>,
+}
+
+impl State {
+    fn new(path: PathBuf) -> Self {
+        Self {
+            mode: Mode::Normal,
+            path,
+            index: 0,
+            list: Vec::new(),
+            lines: 0,
+            offset: 0,
+            selected: Vec::new(),
+            message: None,
+            search: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -88,120 +115,190 @@ fn init_ui() -> io::Result<()> {
     };
     term.hide_cursor()?;
     term.clear_screen()?;
-    let mut state = State {
-        path,
-        index: 0,
-        list: Vec::new(),
-        lines: 0,
-        offset: 0,
-        selected: Vec::new(),
-        message: None,
-    };
+    let mut state = State::new(path);
     let mut prev_key = None;
     read_dir(&mut state)?;
     print(&term, &mut state)?;
     loop {
         let mut key = Some(term.read_key()?);
         let (height, _) = term.size();
-        match key.clone().unwrap() {
-            Key::Char('q') => break,
-            Key::Char('j') => {
-                if state.list.len() > 0 && state.index < state.list.len() - 1 {
-                    state.index += 1;
-                    if state.index >= state.lines + state.offset - 5 - 5 {
-                        state.offset += 1;
+        match state.mode {
+            Mode::Normal => match key.clone().unwrap() {
+                Key::Char('q') => break,
+                Key::Char('/') => {
+                    state.mode = Mode::Search;
+                    state.search = Some(String::new());
+                    term.hide_cursor()?;
+                    print(&term, &mut state)?;
+                    term.show_cursor()?;
+                    term.move_cursor_to(10, 2)?;
+                }
+                Key::Char('j') => {
+                    if state.list.len() > 0 && state.index < state.list.len() - 1 {
+                        state.index += 1;
+                        if state.index >= state.lines + state.offset - 5 - 5 {
+                            state.offset += 1;
+                        }
+                        print(&term, &mut state)?;
                     }
-                    print(&term, &mut state)?;
                 }
-            }
-            Key::Char('k') => {
-                if state.index > 0 {
-                    state.index -= 1;
-                    if state.offset > 0 && state.index - state.offset < 5 {
-                        state.offset -= 1;
+                Key::Char('k') => {
+                    if state.index > 0 {
+                        state.index -= 1;
+                        if state.offset > 0 && state.index - state.offset < 5 {
+                            state.offset -= 1;
+                        }
+                        print(&term, &mut state)?;
                     }
-                    print(&term, &mut state)?;
                 }
-            }
-            Key::Char('h') => {
-                if let Some(parent) = state.path.parent() {
-                    state.path = parent.to_path_buf();
-                    state.index = 0;
-                    state.offset = 0;
-                    state.selected.clear();
-                    read_dir(&mut state)?;
-                    print(&term, &mut state)?;
-                }
-            }
-            Key::Char('l') => {
-                if state.list.len() > 0 {
-                    let entry = &state.list[state.index];
-                    if entry.kind == EntryKind::Dir {
-                        state.path.push(&entry.file_name);
+                Key::Char('h') => {
+                    if let Some(parent) = state.path.parent() {
+                        state.path = parent.to_path_buf();
                         state.index = 0;
                         state.offset = 0;
                         state.selected.clear();
+                        state.message = None;
                         read_dir(&mut state)?;
                         print(&term, &mut state)?;
                     }
                 }
-            }
-            Key::Char('g') => {
-                if let Some(prev_key) = &prev_key {
-                    match prev_key {
-                        Key::Char('g') => {
-                            if state.list.len() > 0 {
-                                state.index = 0;
-                                state.offset = 0;
-                                read_dir(&mut state)?;
-                                print(&term, &mut state)?;
-                                key = None;
-                            }
+                Key::Char('l') => {
+                    if state.list.len() > 0 {
+                        let entry = &state.list[state.index];
+                        if entry.kind == EntryKind::Dir {
+                            state.path.push(&entry.file_name);
+                            state.index = 0;
+                            state.offset = 0;
+                            state.selected.clear();
+                            state.message = None;
+                            read_dir(&mut state)?;
+                            print(&term, &mut state)?;
                         }
-                        _ => (),
                     }
                 }
-            }
-            Key::Char('e') => {
-                if let Some(prev_key) = &prev_key {
-                    match prev_key {
-                        Key::Char('g') => {
-                            if state.list.len() > 0 {
-                                state.index = state.list.len() - 1;
-                                if state.index >= height as usize + state.offset - 4 - 5 {
-                                    state.offset = state.list.len() - height as usize + 5 + 4;
+                Key::Char('g') => {
+                    if let Some(prev_key) = &prev_key {
+                        match prev_key {
+                            Key::Char('g') => {
+                                if state.list.len() > 0 {
+                                    state.index = 0;
+                                    state.offset = 0;
+                                    read_dir(&mut state)?;
+                                    print(&term, &mut state)?;
+                                    key = None;
                                 }
-                                read_dir(&mut state)?;
-                                print(&term, &mut state)?;
-                                key = None;
                             }
+                            _ => (),
                         }
-                        _ => (),
                     }
                 }
-            }
-            Key::Char('x') => {
-                if state.list.len() > 0 {
-                    let index = state.selected.iter().position(|i| i == &state.index);
-                    match index {
-                        Some(index) => {
-                            state.selected.remove(index);
-                        }
-                        None => {
-                            state.selected.push(state.index);
-                        }
-                    }
-                    match state.selected.len() {
-                        0 => state.message = None,
-                        _ => {
-                            state.message =
-                                Some(format!("   {} items selected", state.selected.len()))
+                Key::Char('e') => {
+                    if let Some(prev_key) = &prev_key {
+                        match prev_key {
+                            Key::Char('g') => {
+                                if state.list.len() > 0 {
+                                    state.index = state.list.len() - 1;
+                                    if state.index >= height as usize + state.offset - 4 - 5 {
+                                        state.offset = state.list.len() - height as usize + 5 + 4;
+                                    }
+                                    read_dir(&mut state)?;
+                                    print(&term, &mut state)?;
+                                    key = None;
+                                }
+                            }
+                            _ => (),
                         }
                     }
+                }
+                Key::Char('x') => {
+                    if state.list.len() > 0 {
+                        let index = state.selected.iter().position(|i| i == &state.index);
+                        match index {
+                            Some(index) => {
+                                state.selected.remove(index);
+                            }
+                            None => {
+                                state.selected.push(state.index);
+                            }
+                        }
+                        match state.selected.len() {
+                            0 => state.message = None,
+                            _ => {
+                                state.message =
+                                    Some(format!("   {} items selected", state.selected.len()))
+                            }
+                        }
+                        print(&term, &mut state)?;
+                    }
+                }
+                _ => (),
+            },
+            Mode::Search => match key.clone().unwrap() {
+                Key::Escape => {
+                    state.mode = Mode::Normal;
+                    state.search = None;
+                    term.hide_cursor()?;
                     print(&term, &mut state)?;
                 }
-            }
-            _ => (),
+                Key::Enter => {
+                    if let Some(search) = state.search.clone() {
+                        match Regex::new(&search) {
+                            Ok(regex) => {
+                                state.selected.clear();
+                                for (i, entry) in state.list.iter().enumerate() {
+                                    if regex.is_match(&entry.file_name) {
+                                        state.selected.push(i);
+                                    }
+                                }
+                                match state.selected.len() {
+                                    0 => state.message = None,
+                                    _ => {
+                                        state.index = state.selected[0];
+                                        // TODO: set offset correctly
+                                        // if state.index >= state.lines + state.offset - 5 - 5 {
+                                        //     state.offset = state.index - height as usize - 4 - 5;
+                                        // } else {
+                                        //     state.offset = 0;
+                                        // }
+                                        state.message = Some(format!(
+                                            "   {} items selected",
+                                            state.selected.len()
+                                        ))
+                                    }
+                                }
+                            }
+                            Err(_) => (),
+                        };
+                        state.mode = Mode::Normal;
+                        state.search = None;
+                        term.hide_cursor()?;
+                        print(&term, &mut state)?;
+                    }
+                }
+                Key::Char(char) => {
+                    if let Some(mut search) = state.search.clone() {
+                        search.push(char);
+                        let length = search.len();
+                        state.search = Some(search);
+                        term.hide_cursor()?;
+                        print(&term, &mut state)?;
+                        term.show_cursor()?;
+                        term.move_cursor_to(10 + length, 2)?;
+                    }
+                }
+                Key::Backspace => {
+                    if let Some(mut search) = state.search.clone() {
+                        search.pop();
+                        let length = search.len();
+                        state.search = Some(search);
+                        term.hide_cursor()?;
+                        print(&term, &mut state)?;
+                        term.show_cursor()?;
+                        term.move_cursor_to(10 + length, 2)?;
+                    }
+                }
+                _ => (),
+            },
         }
         prev_key = key;
     }
@@ -246,6 +343,10 @@ fn print(term: &Term, state: &mut State) -> io::Result<()> {
             term.write_line(&format!("   {}", path))?;
             continue;
         }
+        if i == 2 && state.mode == Mode::Search {
+            term.write_line(&format!("   select:{}", state.search.clone().unwrap()))?;
+            continue;
+        }
         if i == 3 && state.offset > 0 {
             term.write_line("   ...")?;
             continue;
@@ -261,7 +362,11 @@ fn print(term: &Term, state: &mut State) -> io::Result<()> {
             let index = i - 3 + state.offset;
             if state.list.len() > index {
                 let entry = &state.list[index];
-                let pointer = if state.index == index { ">" } else { " " };
+                let pointer = if state.mode == Mode::Normal && state.index == index {
+                    ">"
+                } else {
+                    " "
+                };
                 let color = match entry.kind {
                     EntryKind::Dir => Color::Blue,
                     EntryKind::File => entry.to_color(),
@@ -284,6 +389,5 @@ fn print(term: &Term, state: &mut State) -> io::Result<()> {
         term.write_line("")?;
     }
     state.lines = lines;
-    term.hide_cursor()?;
     Ok(())
 }
