@@ -231,6 +231,35 @@ fn init_ui() -> io::Result<()> {
                         print(&term, &mut state)?;
                     }
                 }
+                Key::Char('n') => {
+                    if state.list.len() > 0 && state.selected.len() > 0 {
+                        let mut next = state.selected[0];
+                        for index in state.selected.clone() {
+                            if state.index < index {
+                                next = index;
+                                break;
+                            }
+                        }
+                        state.index = next;
+                        print(&term, &mut state)?;
+                    }
+                }
+                // TODO: set previous selected correctly
+                // Key::Char('N') => {
+                //     if state.list.len() > 0 && state.selected.len() > 0 {
+                //         let mut previous = state.selected[state.selected.len() - 1];
+                //         let mut last = previous;
+                //         for index in state.selected.clone() {
+                //             if state.index > last {
+                //                 previous = index;
+                //                 break;
+                //             }
+                //             last = index;
+                //         }
+                //         state.index = previous;
+                //         print(&term, &mut state)?;
+                //     }
+                // }
                 _ => (),
             },
             Mode::Search => match key.clone().unwrap() {
@@ -344,7 +373,7 @@ fn print(term: &Term, state: &mut State) -> io::Result<()> {
             continue;
         }
         if i == 2 && state.mode == Mode::Search {
-            term.write_line(&format!("   select:{}", state.search.clone().unwrap()))?;
+            term.write_line(&format!("   search:{}", state.search.clone().unwrap()))?;
             continue;
         }
         if i == 3 && state.offset > 0 {
