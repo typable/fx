@@ -125,6 +125,10 @@ fn init_ui() -> io::Result<()> {
         match state.mode {
             Mode::Normal => match key.clone().unwrap() {
                 Key::Char('q') => break,
+                Key::Escape => {
+                    state.selected.clear();
+                    print(&term, &mut state)?;
+                }
                 Key::Char('/') => {
                     state.mode = Mode::Search;
                     state.search = Some(String::new());
