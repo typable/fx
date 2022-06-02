@@ -1,2 +1,2 @@
 # fex
-TUI based file explorer
+A terminal based file explorer
