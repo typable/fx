@@ -207,7 +207,9 @@ fn init_ui() -> io::Result<()> {
                             Key::Char('g') => {
                                 if state.list.len() > 0 {
                                     state.index = state.list.len() - 1;
-                                    state.offset = state.index - state.lines + 6;
+                                    if state.index >= state.lines - 6 - PADDING {
+                                        state.offset = state.index - state.lines + 6;
+                                    }
                                     read_dir(&mut state)?;
                                     print(&term, &mut state)?;
                                     key = None;
