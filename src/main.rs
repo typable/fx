@@ -24,6 +24,9 @@ macro_rules! pad {
     };
 }
 
+// The offset to the top and bottom of the file list
+const PADDING: usize = 2;
+
 #[derive(Debug, PartialEq)]
 enum Mode {
     Normal,
@@ -38,7 +41,7 @@ struct State {
     path: PathBuf,
     // The current index in the file list
     index: usize,
-    /// The list of files in the current directory
+    // The list of files in the current directory
     list: Vec<Entry>,
     // The count of printed lines to the screen
     lines: usize,
@@ -81,7 +84,7 @@ struct Entry {
 }
 
 impl Entry {
-    /// Returns the corresponding color for the file type
+    // Returns the corresponding color for the file type
     fn to_color(&self) -> Color {
         if self.file_name.starts_with(".") {
             return Color::Color256(247);
@@ -94,7 +97,7 @@ fn main() {
     init_ui().unwrap();
 }
 
-/// Initializes the terminal user interface
+// Initializes the terminal user interface
 fn init_ui() -> io::Result<()> {
     let term = Term::stdout();
     let mut arguments = env::args();
@@ -121,12 +124,12 @@ fn init_ui() -> io::Result<()> {
     print(&term, &mut state)?;
     loop {
         let mut key = Some(term.read_key()?);
-        let (height, _) = term.size();
         match state.mode {
             Mode::Normal => match key.clone().unwrap() {
                 Key::Char('q') => break,
                 Key::Escape => {
                     state.selected.clear();
+                    state.message = None;
                     print(&term, &mut state)?;
                 }
                 Key::Char('/') => {
@@ -135,13 +138,15 @@ fn init_ui() -> io::Result<()> {
                     term.hide_cursor()?;
                     print(&term, &mut state)?;
                     term.show_cursor()?;
-                    term.move_cursor_to(10, 2)?;
+                    term.move_cursor_to(10, 1)?;
                 }
                 Key::Char('j') => {
                     if state.list.len() > 0 && state.index < state.list.len() - 1 {
                         state.index += 1;
-                        if state.index >= state.lines + state.offset - 5 - 5 {
-                            state.offset += 1;
+                        if state.index >= state.lines + state.offset - 5 - PADDING {
+                            if state.list.len() - state.index > PADDING {
+                                state.offset += 1;
+                            }
                         }
                         print(&term, &mut state)?;
                     }
@@ -149,7 +154,7 @@ fn init_ui() -> io::Result<()> {
                 Key::Char('k') => {
                     if state.index > 0 {
                         state.index -= 1;
-                        if state.offset > 0 && state.index - state.offset < 5 {
+                        if state.offset > 0 && state.index - state.offset < PADDING {
                             state.offset -= 1;
                         }
                         print(&term, &mut state)?;
@@ -202,9 +207,7 @@ fn init_ui() -> io::Result<()> {
                             Key::Char('g') => {
                                 if state.list.len() > 0 {
                                     state.index = state.list.len() - 1;
-                                    if state.index >= height as usize + state.offset - 4 - 5 {
-                                        state.offset = state.list.len() - height as usize + 5 + 4;
-                                    }
+                                    state.offset = state.index - state.lines + 6;
                                     read_dir(&mut state)?;
                                     print(&term, &mut state)?;
                                     key = None;
@@ -229,7 +232,7 @@ fn init_ui() -> io::Result<()> {
                             0 => state.message = None,
                             _ => {
                                 state.message =
-                                    Some(format!("   {} items selected", state.selected.len()))
+                                    Some(format!("{} items selected", state.selected.len()))
                             }
                         }
                         print(&term, &mut state)?;
@@ -245,6 +248,17 @@ fn init_ui() -> io::Result<()> {
                             }
                         }
                         state.index = next;
+                        if state.index < state.lines - 6 - PADDING {
+                            state.offset = 0;
+                        } else if state.index - state.offset > state.lines - 6 - PADDING {
+                            if state.list.len() - state.index <= PADDING {
+                                state.offset = state.index - state.lines + 6 + state.list.len()
+                                    - state.index
+                                    - 1;
+                            } else {
+                                state.offset = state.index - (state.lines - 6 - PADDING);
+                            }
+                        }
                         print(&term, &mut state)?;
                     }
                 }
@@ -287,16 +301,22 @@ fn init_ui() -> io::Result<()> {
                                     0 => state.message = None,
                                     _ => {
                                         state.index = state.selected[0];
-                                        // TODO: set offset correctly
-                                        // if state.index >= state.lines + state.offset - 5 - 5 {
-                                        //     state.offset = state.index - height as usize - 4 - 5;
-                                        // } else {
-                                        //     state.offset = 0;
-                                        // }
-                                        state.message = Some(format!(
-                                            "   {} items selected",
-                                            state.selected.len()
-                                        ))
+                                        if state.index < state.lines + 6 + PADDING {
+                                            state.offset = 0;
+                                        } else {
+                                            if state.list.len() - state.index <= PADDING {
+                                                state.offset = state.index - state.lines
+                                                    + 6
+                                                    + state.list.len()
+                                                    - state.index
+                                                    - 1;
+                                            } else {
+                                                state.offset =
+                                                    state.index - state.lines + 6 + PADDING;
+                                            }
+                                        }
+                                        state.message =
+                                            Some(format!("{} items selected", state.selected.len()))
                                     }
                                 }
                             }
@@ -316,7 +336,7 @@ fn init_ui() -> io::Result<()> {
                         term.hide_cursor()?;
                         print(&term, &mut state)?;
                         term.show_cursor()?;
-                        term.move_cursor_to(10 + length, 2)?;
+                        term.move_cursor_to(10 + length, 1)?;
                     }
                 }
                 Key::Backspace => {
@@ -327,7 +347,7 @@ fn init_ui() -> io::Result<()> {
                         term.hide_cursor()?;
                         print(&term, &mut state)?;
                         term.show_cursor()?;
-                        term.move_cursor_to(10 + length, 2)?;
+                        term.move_cursor_to(10 + length, 1)?;
                     }
                 }
                 _ => (),
@@ -340,7 +360,7 @@ fn init_ui() -> io::Result<()> {
     Ok(())
 }
 
-/// Reads the current directory
+// Reads the current directory
 fn read_dir(state: &mut State) -> io::Result<()> {
     let mut dirs = Vec::new();
     let mut files = Vec::new();
@@ -365,7 +385,7 @@ fn read_dir(state: &mut State) -> io::Result<()> {
     Ok(())
 }
 
-/// Prints the current directory entries to the screen
+// Prints the current directory entries to the screen
 fn print(term: &Term, state: &mut State) -> io::Result<()> {
     let (height, _) = term.size();
     let lines = height as usize - 1;
@@ -373,24 +393,27 @@ fn print(term: &Term, state: &mut State) -> io::Result<()> {
     term.clear_last_lines(state.lines)?;
     for i in 0..lines {
         if i == 1 {
-            term.write_line(&format!("   {}", path))?;
-            continue;
-        }
-        if i == 2 && state.mode == Mode::Search {
-            term.write_line(&format!("   search:{}", state.search.clone().unwrap()))?;
-            continue;
-        }
-        if i == 3 && state.offset > 0 {
-            term.write_line("   ...")?;
-            continue;
-        }
-        if i == lines - 3 {
-            let index = i - 3 + state.offset;
-            if state.list.len() > index {
-                term.write_line("   ...")?;
-                continue;
+            match state.mode {
+                Mode::Normal => {
+                    term.write_line(&format!("   {}", path))?;
+                }
+                Mode::Search => {
+                    term.write_line(&format!("   search:{}", state.search.clone().unwrap()))?;
+                }
             }
+            continue;
         }
+        // if i == 3 && state.offset > 0 {
+        //     term.write_line("   ...")?;
+        //     continue;
+        // }
+        // if i == lines - 3 {
+        //     let index = i - 3 + state.offset;
+        //     if state.list.len() > index {
+        //         term.write_line("   ...")?;
+        //         continue;
+        //     }
+        // }
         if i > 2 && i < lines - 2 {
             let index = i - 3 + state.offset;
             if state.list.len() > index {
@@ -404,18 +427,42 @@ fn print(term: &Term, state: &mut State) -> io::Result<()> {
                     EntryKind::Dir => Color::Blue,
                     EntryKind::File => entry.to_color(),
                 };
+                let line = format!(
+                    "{}{}",
+                    pad!(&entry.file_name, 40),
+                    pad!(
+                        match entry.kind {
+                            EntryKind::Dir => "dir",
+                            EntryKind::File => "file",
+                        },
+                        10
+                    )
+                );
                 let value = match state.selected.contains(&index) {
-                    true => color!(pad!(&entry.file_name, 50), Color::Black, color).to_string(),
-                    false => color!(pad!(&entry.file_name, 50), color).to_string(),
+                    true => color!(&line, Color::Black, color).to_string(),
+                    false => color!(&line, color).to_string(),
                 };
                 term.write_line(&format!(" {} {}", pointer, value))?;
                 continue;
             }
         }
         if i == lines - 1 {
+            let length = state.list.len();
+            let digits = length.to_string().len();
             match &state.message {
-                Some(message) => term.write_line(&message)?,
-                None => term.write_line("")?,
+                Some(message) => term.write_line(&format!(
+                    "   {:0>width$}/{}   {}",
+                    state.index + 1,
+                    length,
+                    &message,
+                    width = digits,
+                ))?,
+                None => term.write_line(&format!(
+                    "   {:0>width$}/{}",
+                    state.index + 1,
+                    length,
+                    width = digits
+                ))?,
             }
             continue;
         }
