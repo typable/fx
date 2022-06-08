@@ -53,6 +53,8 @@ struct State {
     message: Option<String>,
     // The search for filtering the file list
     search: Option<String>,
+    // Show dotfiles
+    show_dotfiles: bool,
 }
 
 impl State {
@@ -67,6 +69,7 @@ impl State {
             selected: Vec::new(),
             message: None,
             search: None,
+            show_dotfiles: false,
         }
     }
 }
@@ -130,6 +133,15 @@ fn init_ui() -> io::Result<()> {
                 Key::Escape => {
                     state.selected.clear();
                     state.message = None;
+                    print(&term, &mut state)?;
+                }
+                Key::Char(' ') => {
+                    state.show_dotfiles = !state.show_dotfiles;
+                    state.index = 0;
+                    state.offset = 0;
+                    state.selected.clear();
+                    state.message = None;
+                    read_dir(&mut state)?;
                     print(&term, &mut state)?;
                 }
                 Key::Char('/') => {
@@ -383,6 +395,9 @@ fn read_dir(state: &mut State) -> io::Result<()> {
         let item = dir_entry?;
         let path = item.path();
         let file_name = item.file_name().into_string().unwrap();
+        if !state.show_dotfiles && file_name.starts_with(".") {
+            continue;
+        }
         let kind = match &path.is_dir() {
             true => EntryKind::Dir,
             false => EntryKind::File,
