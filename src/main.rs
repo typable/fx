@@ -233,8 +233,13 @@ fn init_ui() -> io::Result<()> {
                         match state.selected.len() {
                             0 => state.message = None,
                             _ => {
+                                let word = if state.selected.len() == 1 {
+                                    "item"
+                                } else {
+                                    "items"
+                                };
                                 state.message =
-                                    Some(format!("{} items selected", state.selected.len()))
+                                    Some(format!("{} {} selected", state.selected.len(), word))
                             }
                         }
                         print(&term, &mut state)?;
@@ -317,8 +322,16 @@ fn init_ui() -> io::Result<()> {
                                                     state.index - state.lines + 6 + PADDING;
                                             }
                                         }
-                                        state.message =
-                                            Some(format!("{} items selected", state.selected.len()))
+                                        let word = if state.selected.len() == 1 {
+                                            "item"
+                                        } else {
+                                            "items"
+                                        };
+                                        state.message = Some(format!(
+                                            "{} {} selected",
+                                            state.selected.len(),
+                                            word,
+                                        ))
                                     }
                                 }
                             }
