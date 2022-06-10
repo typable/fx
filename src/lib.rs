@@ -59,7 +59,12 @@ impl Config {
             Some(config_path) => match fs::read_to_string(config_path) {
                 Ok(raw) => match toml::from_str(&raw) {
                     Ok(config) => return Ok(config),
-                    Err(_) => return Err(Error::new("Invalid config file!")),
+                    Err(err) => {
+                        return Err(Error::new(&format!(
+                            "Invalid config file! Reason: {}",
+                            err.to_string()
+                        )))
+                    }
                 },
                 Err(_) => return Ok(Config::default()),
             },

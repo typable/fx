@@ -17,7 +17,14 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-fn main() -> Result<()> {
+fn main() {
+    match init() {
+        Ok(_) => (),
+        Err(err) => println!("{}", err),
+    }
+}
+
+fn init() -> Result<()> {
     let config = Config::acquire()?;
     let state = create_state(config)?;
     init_ui(state)?;
@@ -38,14 +45,7 @@ fn create_state(config: Config) -> Result<State> {
                 "Invalid arguments! '{}' is not a valid path!",
                 &current_dir
             )))
-        } // Err(_) => {
-          //     term.write_line(color!(
-          //         &format!("Invalid arguments! '{}' is not a valid path!", &current_dir),
-          //         Color::Red
-          //     ))
-          //     .unwrap();
-          //     process::exit(1);
-          // }
+        }
     };
     Ok(State::new(config, path))
 }
