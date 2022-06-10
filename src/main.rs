@@ -73,6 +73,7 @@ fn update_loop(ctx: &mut Context) -> Result<()> {
             Key::Char('k') => move_caret(ctx, Move::Up)?,
             Key::Char('h') => change_dir(ctx, Move::Down)?,
             Key::Char('l') => change_dir(ctx, Move::Up)?,
+            Key::Char(' ') => toggle_dotfiles(ctx)?,
             _ => (),
         }
     }
@@ -138,6 +139,17 @@ fn change_dir(ctx: &mut Context, movement: Move) -> Result<()> {
     Ok(())
 }
 
+fn toggle_dotfiles(ctx: &mut Context) -> Result<()> {
+    ctx.1.show_dotfiles = !ctx.1.show_dotfiles;
+    ctx.1.index = 0;
+    ctx.1.offset = 0;
+    ctx.1.selected.clear();
+    ctx.1.message = None;
+    read_dir(ctx)?;
+    print(ctx)?;
+    Ok(())
+}
+
 // Reads the current directory
 fn read_dir(ctx: &mut Context) -> io::Result<()> {
     let mut dirs = Vec::new();
@@ -146,6 +158,9 @@ fn read_dir(ctx: &mut Context) -> io::Result<()> {
         let item = dir_entry?;
         let path = item.path();
         let file_name = item.file_name().into_string().unwrap();
+        if !ctx.1.show_dotfiles && file_name.starts_with(".") {
+            continue;
+        }
         let kind = match &path.is_dir() {
             true => EntryKind::Dir,
             false => EntryKind::File,

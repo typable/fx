@@ -95,6 +95,8 @@ pub struct State {
     pub message: Option<String>,
     // The search for filtering the file list
     pub search: Option<String>,
+    // The flag if dotfiles should be listed
+    pub show_dotfiles: bool,
 }
 
 impl State {
@@ -110,6 +112,7 @@ impl State {
             selected: Vec::new(),
             message: None,
             search: None,
+            show_dotfiles: true,
         }
     }
 }
