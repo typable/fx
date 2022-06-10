@@ -27,8 +27,6 @@ pub const APP_NAME: &'static str = "fx";
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub type Context<'a> = (&'a Term, &'a mut State);
-
 #[derive(PartialEq)]
 pub enum Mode {
     Normal,
@@ -39,6 +37,13 @@ pub enum Mode {
 pub enum Move {
     Up,
     Down,
+    Next,
+}
+
+#[derive(PartialEq)]
+pub enum FolderDir {
+    Parent,
+    Child,
 }
 
 #[derive(Clone, PartialEq)]
@@ -82,6 +87,8 @@ impl Default for Config {
 pub struct State {
     // The config file
     pub config: Config,
+    // The terminal struct
+    pub term: Term,
     // The current directory path
     pub path: PathBuf,
     // The current interaction mode
@@ -108,6 +115,7 @@ impl State {
     pub fn new(config: Config, path: PathBuf) -> Self {
         Self {
             config,
+            term: Term::stdout(),
             path,
             mode: Mode::Normal,
             index: 0,
