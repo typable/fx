@@ -73,6 +73,15 @@ fn update_loop(state: &mut State) -> Result<()> {
             Key::Char(' ') => toggle_dotfiles(state)?,
             Key::Char('x') => toggle_select(state)?,
             Key::Char('n') => move_caret(state, Move::Next)?,
+            Key::Char('N') => move_caret(state, Move::Prev)?,
+            Key::Char('g') => {
+                let key = state.term.read_key()?;
+                match key {
+                    Key::Char('g') => move_caret(state, Move::Top)?,
+                    Key::Char('e') => move_caret(state, Move::Bottom)?,
+                    _ => (),
+                }
+            }
             Key::Escape => {
                 state.selected.clear();
                 state.message = None;
@@ -98,7 +107,7 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
             }
         }
         Move::Up => {
-            if state.index > 0 {
+            if state.list.len() > 0 && state.index > 0 {
                 state.index -= 1;
                 if state.offset > 0 && state.index - state.offset < state.config.padding {
                     state.offset -= 1;
@@ -119,14 +128,65 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
                 }
                 state.index = next;
                 if state.index < state.lines - 6 - state.config.padding {
+                    // caret is visible on the screen without any offset
                     state.offset = 0;
                 } else if state.index - state.offset > state.lines - 6 - state.config.padding {
                     if state.list.len() - state.index <= state.config.padding {
+                        // caret is beyond the screen and (almost) at the end of the list
                         state.offset =
                             state.index - state.lines + 6 + state.list.len() - state.index - 1;
                     } else {
+                        // caret is beyond the screen
                         state.offset = state.index - (state.lines - 6 - state.config.padding);
                     }
+                }
+                print(state)?;
+            }
+        }
+        Move::Prev => {
+            if state.list.len() > 0 && state.selected.len() > 0 {
+                let mut selected = state.selected.clone();
+                selected.sort();
+                let mut prev = selected[selected.len() - 1];
+                for index in selected.iter().cloned().rev() {
+                    if state.index > index {
+                        prev = index;
+                        break;
+                    }
+                }
+                state.index = prev;
+                // TODO: Adjust logic in order to set offset correctly
+                // if state.index < state.lines - 6 - state.config.padding {
+                //     // caret is visible on the screen without any offset
+                //     state.offset = 0;
+                // } else if state.index - state.offset > state.lines - 6 - state.config.padding {
+                //     if state.list.len() - state.index <= state.config.padding {
+                //         // caret is beyond the screen and (almost) at the end of the list
+                //         state.offset =
+                //             state.index - state.lines + 6 + state.list.len() - state.index - 1;
+                //     } else {
+                //         // caret is beyond the screen
+                //         state.offset = state.index - (state.lines - 6 - state.config.padding);
+                //     }
+                // }
+                print(state)?;
+            }
+        }
+        Move::Top => {
+            if state.list.len() > 0 {
+                state.index = 0;
+                state.offset = 0;
+                print(state)?;
+            }
+        }
+        Move::Bottom => {
+            if state.list.len() > 0 {
+                state.index = state.list.len() - 1;
+                if state.index < state.lines + 6 + state.list.len() - state.index - 1 {
+                    state.offset = 0;
+                } else {
+                    state.offset =
+                        state.index - state.lines + 6 + state.list.len() - state.index - 1;
                 }
                 print(state)?;
             }

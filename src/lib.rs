@@ -38,6 +38,9 @@ pub enum Move {
     Up,
     Down,
     Next,
+    Prev,
+    Top,
+    Bottom,
 }
 
 #[derive(PartialEq)]
