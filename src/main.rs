@@ -108,8 +108,10 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
         }
         Move::Next => {
             if state.list.len() > 0 && state.selected.len() > 0 {
-                let mut next = state.selected[0];
-                for index in state.selected.clone() {
+                let mut selected = state.selected.clone();
+                selected.sort();
+                let mut next = selected[0];
+                for index in selected {
                     if state.index < index {
                         next = index;
                         break;
