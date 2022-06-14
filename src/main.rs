@@ -173,7 +173,7 @@ fn do_search(state: &mut State) -> Result<()> {
                                 state.selected.push(i);
                             }
                         }
-                        set_select_message(state)?;
+                        set_select_message(state);
                         move_caret(state, Move::First)?;
                     }
                     Err(_) => {
@@ -367,7 +367,7 @@ fn toggle_select(state: &mut State) -> Result<()> {
                 state.selected.push(state.index);
             }
         }
-        set_select_message(state)?;
+        set_select_message(state);
         print(state)?;
     }
     Ok(())
@@ -379,29 +379,23 @@ fn select_all(state: &mut State) -> Result<()> {
         for i in 0..state.list.len() {
             state.selected.push(i);
         }
-        set_select_message(state)?;
+        set_select_message(state);
         print(state)?;
     }
     Ok(())
 }
 
-fn set_select_message(state: &mut State) -> Result<()> {
-    match state.selected.len() {
-        0 => state.message = None,
-        _ => {
-            let word = if state.selected.len() == 1 {
-                "item"
-            } else {
-                "items"
-            };
-            state.message = Some(Message::info(&format!(
-                "{} {} selected",
-                state.selected.len(),
-                word
-            )))
-        }
+fn set_select_message(state: &mut State) {
+    let length = state.selected.len();
+    if length == 0 {
+        state.message = None;
+        return;
     }
-    Ok(())
+    state.message = Some(Message::info(&format!(
+        "{} {} selected",
+        length,
+        if length == 1 { "item" } else { "items" }
+    )));
 }
 
 // Reads the current directory
