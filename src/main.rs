@@ -73,6 +73,7 @@ fn update_loop(state: &mut State) -> Result<()> {
             Key::Char('l') => change_dir(state, FolderDir::Child)?,
             Key::Char(' ') => toggle_dotfiles(state)?,
             Key::Char('x') => toggle_select(state)?,
+            Key::Char('%') => select_all(state)?,
             Key::Char('n') => move_caret(state, Move::Next)?,
             Key::Char('N') => move_caret(state, Move::Prev)?,
             Key::Char('g') => {
@@ -173,17 +174,7 @@ fn do_search(state: &mut State) -> Result<()> {
                         state.selected.push(i);
                     }
                 }
-                match state.selected.len() {
-                    0 => state.message = None,
-                    _ => {
-                        let word = if state.selected.len() == 1 {
-                            "item"
-                        } else {
-                            "items"
-                        };
-                        state.message = Some(format!("{} {} selected", state.selected.len(), word))
-                    }
-                }
+                set_select_message(state)?;
                 state.mode = Mode::Normal;
                 state.term.hide_cursor()?;
                 move_caret(state, Move::First)?;
@@ -372,18 +363,35 @@ fn toggle_select(state: &mut State) -> Result<()> {
                 state.selected.push(state.index);
             }
         }
-        match state.selected.len() {
-            0 => state.message = None,
-            _ => {
-                let word = if state.selected.len() == 1 {
-                    "item"
-                } else {
-                    "items"
-                };
-                state.message = Some(format!("{} {} selected", state.selected.len(), word))
-            }
-        }
+        set_select_message(state)?;
         print(state)?;
+    }
+    Ok(())
+}
+
+fn select_all(state: &mut State) -> Result<()> {
+    if state.list.len() > 0 {
+        state.selected.clear();
+        for i in 0..state.list.len() {
+            state.selected.push(i);
+        }
+        set_select_message(state)?;
+        print(state)?;
+    }
+    Ok(())
+}
+
+fn set_select_message(state: &mut State) -> Result<()> {
+    match state.selected.len() {
+        0 => state.message = None,
+        _ => {
+            let word = if state.selected.len() == 1 {
+                "item"
+            } else {
+                "items"
+            };
+            state.message = Some(format!("{} {} selected", state.selected.len(), word))
+        }
     }
     Ok(())
 }
