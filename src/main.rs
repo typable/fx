@@ -164,20 +164,23 @@ fn do_search(state: &mut State) -> Result<()> {
                 if search.len() == 0 {
                     continue;
                 }
-                let re = match Regex::new(&search) {
-                    Ok(re) => re,
-                    Err(_) => continue,
-                };
-                state.selected.clear();
-                for (i, entry) in state.list.iter().enumerate() {
-                    if re.is_match(&entry.file_name) {
-                        state.selected.push(i);
+                match Regex::new(&search) {
+                    Ok(re) => {
+                        state.selected.clear();
+                        for (i, entry) in state.list.iter().enumerate() {
+                            if re.is_match(&entry.file_name) {
+                                state.selected.push(i);
+                            }
+                        }
+                        set_select_message(state)?;
+                        move_caret(state, Move::First)?;
+                    }
+                    Err(_) => {
+                        state.message = Some("Invalid search pattern!".into());
                     }
                 }
-                set_select_message(state)?;
                 state.mode = Mode::Normal;
                 state.term.hide_cursor()?;
-                move_caret(state, Move::First)?;
                 print(state)?;
                 break;
             }
