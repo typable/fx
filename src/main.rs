@@ -82,10 +82,80 @@ fn update_loop(state: &mut State) -> Result<()> {
                     _ => (),
                 }
             }
+            Key::Char('/') => do_search(state)?,
             Key::Escape => {
                 state.selected.clear();
                 state.message = None;
                 print(state)?;
+            }
+            _ => (),
+        }
+    }
+    Ok(())
+}
+
+fn do_search(state: &mut State) -> Result<()> {
+    state.mode = Mode::Search;
+    state.search = None;
+    state.cursor = 0;
+    print(state)?;
+    state.term.move_cursor_to(10, 1)?;
+    state.term.show_cursor()?;
+    loop {
+        let key = state.term.read_key()?;
+        match key {
+            Key::Escape => {
+                state.mode = Mode::Normal;
+                state.term.hide_cursor()?;
+                print(state)?;
+                break;
+            }
+            Key::Backspace => {
+                let mut search = state.search.clone().unwrap_or_default();
+                if search.len() > 0 && state.cursor > 0 {
+                    state.cursor -= 1;
+                    search.remove(state.cursor);
+                    state.search = Some(search);
+                    state.term.hide_cursor()?;
+                    print(state)?;
+                    state.term.move_cursor_to(10 + state.cursor, 1)?;
+                    state.term.show_cursor()?;
+                }
+            }
+            Key::Del => {
+                let mut search = state.search.clone().unwrap_or_default();
+                if state.cursor < search.len() {
+                    search.remove(state.cursor);
+                    state.search = Some(search);
+                    state.term.hide_cursor()?;
+                    print(state)?;
+                    state.term.move_cursor_to(10 + state.cursor, 1)?;
+                    state.term.show_cursor()?;
+                }
+            }
+            Key::Char(char) => {
+                let mut search = state.search.clone().unwrap_or_default();
+                search.push(char);
+                state.cursor = search.len();
+                state.search = Some(search);
+                state.term.hide_cursor()?;
+                print(state)?;
+                state.term.move_cursor_to(10 + state.cursor, 1)?;
+                state.term.show_cursor()?;
+            }
+            Key::ArrowLeft => {
+                if state.cursor > 0 {
+                    state.cursor -= 1;
+                    state.term.move_cursor_to(10 + state.cursor, 1)?;
+                    state.term.show_cursor()?;
+                }
+            }
+            Key::ArrowRight => {
+                if state.cursor < state.search.clone().unwrap_or_default().len() {
+                    state.cursor += 1;
+                    state.term.move_cursor_to(10 + state.cursor, 1)?;
+                    state.term.show_cursor()?;
+                }
             }
             _ => (),
         }
@@ -326,9 +396,10 @@ fn print_head(state: &mut State) -> Result<()> {
             state.term.write_line(&format!("   {}", path))?;
         }
         Mode::Search => {
-            state
-                .term
-                .write_line(&format!("   search:{}", state.search.clone().unwrap()))?;
+            state.term.write_line(&format!(
+                "   search:{}",
+                state.search.clone().unwrap_or_default()
+            ))?;
         }
     }
     Ok(())

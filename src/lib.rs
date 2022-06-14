@@ -110,6 +110,8 @@ pub struct State {
     pub message: Option<String>,
     // The search for filtering the file list
     pub search: Option<String>,
+    // The cursor index during search
+    pub cursor: usize,
     // The flag if dotfiles should be listed
     pub show_dotfiles: bool,
 }
@@ -128,6 +130,7 @@ impl State {
             selected: Vec::new(),
             message: None,
             search: None,
+            cursor: 0,
             show_dotfiles: true,
         }
     }
