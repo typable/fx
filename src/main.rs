@@ -173,6 +173,17 @@ fn do_search(state: &mut State) -> Result<()> {
                         state.selected.push(i);
                     }
                 }
+                match state.selected.len() {
+                    0 => state.message = None,
+                    _ => {
+                        let word = if state.selected.len() == 1 {
+                            "item"
+                        } else {
+                            "items"
+                        };
+                        state.message = Some(format!("{} {} selected", state.selected.len(), word))
+                    }
+                }
                 state.mode = Mode::Normal;
                 state.term.hide_cursor()?;
                 move_caret(state, Move::First)?;
