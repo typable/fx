@@ -88,6 +88,32 @@ impl Default for Config {
     }
 }
 
+pub struct Message {
+    text: String,
+    color: Color,
+}
+
+impl Message {
+    pub fn info(text: &str) -> Self {
+        Self {
+            text: text.to_string(),
+            color: Color::White,
+        }
+    }
+    pub fn error(text: &str) -> Self {
+        Self {
+            text: text.to_string(),
+            color: Color::Red,
+        }
+    }
+}
+
+impl fmt::Display for Message {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", color!(&self.text, self.color))
+    }
+}
+
 pub struct State {
     // The config file
     pub config: Config,
@@ -108,7 +134,7 @@ pub struct State {
     // The list of selected files
     pub selected: Vec<usize>,
     // The info message to display on screen
-    pub message: Option<String>,
+    pub message: Option<Message>,
     // The search for filtering the file list
     pub search: Option<String>,
     // The cursor index during search

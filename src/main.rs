@@ -7,6 +7,7 @@ use fx::Entry;
 use fx::EntryKind;
 use fx::Error;
 use fx::FolderDir;
+use fx::Message;
 use fx::Mode;
 use fx::Move;
 use fx::Result;
@@ -176,7 +177,7 @@ fn do_search(state: &mut State) -> Result<()> {
                         move_caret(state, Move::First)?;
                     }
                     Err(_) => {
-                        state.message = Some("Invalid search pattern!".into());
+                        state.message = Some(Message::error("Invalid search pattern!"));
                     }
                 }
                 state.mode = Mode::Normal;
@@ -393,7 +394,11 @@ fn set_select_message(state: &mut State) -> Result<()> {
             } else {
                 "items"
             };
-            state.message = Some(format!("{} {} selected", state.selected.len(), word))
+            state.message = Some(Message::info(&format!(
+                "{} {} selected",
+                state.selected.len(),
+                word
+            )))
         }
     }
     Ok(())
@@ -509,7 +514,7 @@ fn print_message(state: &mut State) -> Result<()> {
             "   {:0>width$}/{}   {}",
             index,
             length,
-            &message,
+            message,
             width = digits,
         ))?,
         None => {
