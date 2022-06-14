@@ -39,6 +39,7 @@ pub enum Move {
     Down,
     Next,
     Prev,
+    First,
     Top,
     Bottom,
 }

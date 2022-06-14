@@ -11,6 +11,7 @@ use fx::Mode;
 use fx::Move;
 use fx::Result;
 use fx::State;
+use regex::Regex;
 use std::env;
 use std::fs;
 use std::io;
@@ -135,8 +136,8 @@ fn do_search(state: &mut State) -> Result<()> {
             }
             Key::Char(char) => {
                 let mut search = state.search.clone().unwrap_or_default();
-                search.push(char);
-                state.cursor = search.len();
+                search.insert(state.cursor, char);
+                state.cursor += 1;
                 state.search = Some(search);
                 state.term.hide_cursor()?;
                 print(state)?;
@@ -156,6 +157,27 @@ fn do_search(state: &mut State) -> Result<()> {
                     state.term.move_cursor_to(10 + state.cursor, 1)?;
                     state.term.show_cursor()?;
                 }
+            }
+            Key::Enter => {
+                let search = state.search.clone().unwrap_or_default();
+                if search.len() == 0 {
+                    continue;
+                }
+                let re = match Regex::new(&search) {
+                    Ok(re) => re,
+                    Err(_) => continue,
+                };
+                state.selected.clear();
+                for (i, entry) in state.list.iter().enumerate() {
+                    if re.is_match(&entry.file_name) {
+                        state.selected.push(i);
+                    }
+                }
+                state.mode = Mode::Normal;
+                state.term.hide_cursor()?;
+                move_caret(state, Move::First)?;
+                print(state)?;
+                break;
             }
             _ => (),
         }
@@ -239,6 +261,27 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
                 //         state.offset = state.index - (state.lines - 6 - state.config.padding);
                 //     }
                 // }
+                print(state)?;
+            }
+        }
+        Move::First => {
+            if state.list.len() > 0 && state.selected.len() > 0 {
+                let mut selected = state.selected.clone();
+                selected.sort();
+                state.index = selected[0];
+                if state.index < state.lines - 6 - state.config.padding {
+                    // caret is visible on the screen without any offset
+                    state.offset = 0;
+                } else if state.index - state.offset > state.lines - 6 - state.config.padding {
+                    if state.list.len() - state.index <= state.config.padding {
+                        // caret is beyond the screen and (almost) at the end of the list
+                        state.offset =
+                            state.index - state.lines + 6 + state.list.len() - state.index - 1;
+                    } else {
+                        // caret is beyond the screen
+                        state.offset = state.index - (state.lines - 6 - state.config.padding);
+                    }
+                }
                 print(state)?;
             }
         }
