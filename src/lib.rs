@@ -30,7 +30,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(PartialEq)]
 pub enum Mode {
     Normal,
-    Search,
+    Prompt,
 }
 
 #[derive(PartialEq)]
@@ -135,9 +135,11 @@ pub struct State {
     pub selected: Vec<usize>,
     // The info message to display on screen
     pub message: Option<Message>,
-    // The search for filtering the file list
-    pub search: Option<String>,
-    // The cursor index during search
+    // The prompt title
+    pub title: Option<String>,
+    // The input field
+    pub input: Option<String>,
+    // The cursor index for the input field
     pub cursor: usize,
     // The flag if dotfiles should be listed
     pub show_dotfiles: bool,
@@ -156,7 +158,8 @@ impl State {
             offset: 0,
             selected: Vec::new(),
             message: None,
-            search: None,
+            title: None,
+            input: None,
             cursor: 0,
             show_dotfiles: true,
         }

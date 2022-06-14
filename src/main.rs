@@ -82,10 +82,11 @@ fn update_loop(state: &mut State) -> Result<()> {
                 match key {
                     Key::Char('g') => move_caret(state, Move::Top)?,
                     Key::Char('e') => move_caret(state, Move::Bottom)?,
+                    Key::Char('t') => prompt(state, "goto", &do_goto)?,
                     _ => (),
                 }
             }
-            Key::Char('/') => do_search(state)?,
+            Key::Char('/') => prompt(state, "search", &do_search)?,
             Key::Escape => {
                 state.selected.clear();
                 state.message = None;
@@ -98,11 +99,57 @@ fn update_loop(state: &mut State) -> Result<()> {
 }
 
 fn do_search(state: &mut State) -> Result<()> {
-    state.mode = Mode::Search;
-    state.search = None;
+    let input = state.input.clone().unwrap_or_default();
+    if input.len() == 0 {
+        return Ok(());
+    }
+    match Regex::new(&input) {
+        Ok(re) => {
+            state.selected.clear();
+            for (i, entry) in state.list.iter().enumerate() {
+                if re.is_match(&entry.file_name) {
+                    state.selected.push(i);
+                }
+            }
+            set_select_message(state);
+            move_caret(state, Move::First)?;
+        }
+        Err(_) => {
+            state.message = Some(Message::error("Invalid search pattern!"));
+        }
+    }
+    Ok(())
+}
+
+fn do_goto(state: &mut State) -> Result<()> {
+    let input = state.input.clone().unwrap_or_default();
+    if input.len() == 0 {
+        return Ok(());
+    }
+    match fs::canonicalize(&Path::new(&input)) {
+        Ok(path) => {
+            state.path = path;
+            state.index = 0;
+            state.offset = 0;
+            state.message = None;
+            state.selected.clear();
+            read_dir(state)?;
+        }
+        Err(_) => {
+            state.message = Some(Message::error("Invalid path!"));
+        }
+    }
+    Ok(())
+}
+
+fn prompt(state: &mut State, title: &str, f: &dyn Fn(&mut State) -> Result<()>) -> Result<()> {
+    let shift = 3 + title.len() + 1;
+    state.title = Some(title.into());
+    state.mode = Mode::Prompt;
+    state.input = None;
     state.cursor = 0;
     print(state)?;
-    state.term.move_cursor_to(10, 1)?;
+    state.term.move_cursor_to(shift, 1)?;
     state.term.show_cursor()?;
     loop {
         let key = state.term.read_key()?;
@@ -114,74 +161,56 @@ fn do_search(state: &mut State) -> Result<()> {
                 break;
             }
             Key::Backspace => {
-                let mut search = state.search.clone().unwrap_or_default();
+                let mut search = state.input.clone().unwrap_or_default();
                 if search.len() > 0 && state.cursor > 0 {
                     state.cursor -= 1;
                     search.remove(state.cursor);
-                    state.search = Some(search);
+                    state.input = Some(search);
                     state.term.hide_cursor()?;
                     print(state)?;
-                    state.term.move_cursor_to(10 + state.cursor, 1)?;
+                    state.term.move_cursor_to(shift + state.cursor, 1)?;
                     state.term.show_cursor()?;
                 }
             }
             Key::Del => {
-                let mut search = state.search.clone().unwrap_or_default();
+                let mut search = state.input.clone().unwrap_or_default();
                 if state.cursor < search.len() {
                     search.remove(state.cursor);
-                    state.search = Some(search);
+                    state.input = Some(search);
                     state.term.hide_cursor()?;
                     print(state)?;
-                    state.term.move_cursor_to(10 + state.cursor, 1)?;
+                    state.term.move_cursor_to(shift + state.cursor, 1)?;
                     state.term.show_cursor()?;
                 }
             }
             Key::Char(char) => {
-                let mut search = state.search.clone().unwrap_or_default();
+                let mut search = state.input.clone().unwrap_or_default();
                 search.insert(state.cursor, char);
                 state.cursor += 1;
-                state.search = Some(search);
+                state.input = Some(search);
                 state.term.hide_cursor()?;
                 print(state)?;
-                state.term.move_cursor_to(10 + state.cursor, 1)?;
+                state.term.move_cursor_to(shift + state.cursor, 1)?;
                 state.term.show_cursor()?;
             }
             Key::ArrowLeft => {
                 if state.cursor > 0 {
                     state.cursor -= 1;
-                    state.term.move_cursor_to(10 + state.cursor, 1)?;
+                    state.term.move_cursor_to(shift + state.cursor, 1)?;
                     state.term.show_cursor()?;
                 }
             }
             Key::ArrowRight => {
-                if state.cursor < state.search.clone().unwrap_or_default().len() {
+                if state.cursor < state.input.clone().unwrap_or_default().len() {
                     state.cursor += 1;
-                    state.term.move_cursor_to(10 + state.cursor, 1)?;
+                    state.term.move_cursor_to(shift + state.cursor, 1)?;
                     state.term.show_cursor()?;
                 }
             }
             Key::Enter => {
-                let search = state.search.clone().unwrap_or_default();
-                if search.len() == 0 {
-                    continue;
-                }
-                match Regex::new(&search) {
-                    Ok(re) => {
-                        state.selected.clear();
-                        for (i, entry) in state.list.iter().enumerate() {
-                            if re.is_match(&entry.file_name) {
-                                state.selected.push(i);
-                            }
-                        }
-                        set_select_message(state);
-                        move_caret(state, Move::First)?;
-                    }
-                    Err(_) => {
-                        state.message = Some(Message::error("Invalid search pattern!"));
-                    }
-                }
                 state.mode = Mode::Normal;
                 state.term.hide_cursor()?;
+                f(state)?;
                 print(state)?;
                 break;
             }
@@ -466,10 +495,11 @@ fn print_head(state: &mut State) -> Result<()> {
             let path = state.path.display().to_string();
             state.term.write_line(&format!("   {}", path))?;
         }
-        Mode::Search => {
+        Mode::Prompt => {
             state.term.write_line(&format!(
-                "   search:{}",
-                state.search.clone().unwrap_or_default()
+                "   {}:{}",
+                state.title.clone().unwrap_or_default(),
+                state.input.clone().unwrap_or_default(),
             ))?;
         }
     }
