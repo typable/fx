@@ -350,7 +350,14 @@ fn toggle_dotfiles(state: &mut State) -> Result<()> {
     state.index = 0;
     state.offset = 0;
     state.selected.clear();
-    state.message = None;
+    state.message = Some(Message::info(&format!(
+        "Dotfiles are {}",
+        if state.show_dotfiles {
+            "displayed"
+        } else {
+            "hidden"
+        }
+    )));
     read_dir(state)?;
     print(state)?;
     Ok(())
