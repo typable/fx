@@ -12,11 +12,13 @@ use fx::Mode;
 use fx::Move;
 use fx::Result;
 use fx::State;
+use fx::PADDING;
 use regex::Regex;
 use std::env;
 use std::fs;
 use std::io;
 use std::path::Path;
+use std::process::Command;
 
 fn main() {
     match init() {
@@ -225,8 +227,8 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
         Move::Down => {
             if state.list.len() > 0 && state.index < state.list.len() - 1 {
                 state.index += 1;
-                if state.index >= state.lines + state.offset - 5 - state.config.padding {
-                    if state.list.len() - state.index > state.config.padding {
+                if state.index >= state.lines + state.offset - 5 - PADDING {
+                    if state.list.len() - state.index > PADDING {
                         state.offset += 1;
                     }
                 }
@@ -236,7 +238,7 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
         Move::Up => {
             if state.list.len() > 0 && state.index > 0 {
                 state.index -= 1;
-                if state.offset > 0 && state.index - state.offset < state.config.padding {
+                if state.offset > 0 && state.index - state.offset < PADDING {
                     state.offset -= 1;
                 }
                 print(state)?;
@@ -254,17 +256,17 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
                     }
                 }
                 state.index = next;
-                if state.index < state.lines - 6 - state.config.padding {
+                if state.index < state.lines - 6 - PADDING {
                     // caret is visible on the screen without any offset
                     state.offset = 0;
-                } else if state.index - state.offset > state.lines - 6 - state.config.padding {
-                    if state.list.len() - state.index <= state.config.padding {
+                } else if state.index - state.offset > state.lines - 6 - PADDING {
+                    if state.list.len() - state.index <= PADDING {
                         // caret is beyond the screen and (almost) at the end of the list
                         state.offset =
                             state.index - state.lines + 6 + state.list.len() - state.index - 1;
                     } else {
                         // caret is beyond the screen
-                        state.offset = state.index - (state.lines - 6 - state.config.padding);
+                        state.offset = state.index - (state.lines - 6 - PADDING);
                     }
                 }
                 print(state)?;
@@ -283,17 +285,17 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
                 }
                 state.index = prev;
                 // TODO: Adjust logic in order to set offset correctly
-                // if state.index < state.lines - 6 - state.config.padding {
+                // if state.index < state.lines - 6 - PADDING {
                 //     // caret is visible on the screen without any offset
                 //     state.offset = 0;
-                // } else if state.index - state.offset > state.lines - 6 - state.config.padding {
-                //     if state.list.len() - state.index <= state.config.padding {
+                // } else if state.index - state.offset > state.lines - 6 - PADDING {
+                //     if state.list.len() - state.index <= PADDING {
                 //         // caret is beyond the screen and (almost) at the end of the list
                 //         state.offset =
                 //             state.index - state.lines + 6 + state.list.len() - state.index - 1;
                 //     } else {
                 //         // caret is beyond the screen
-                //         state.offset = state.index - (state.lines - 6 - state.config.padding);
+                //         state.offset = state.index - (state.lines - 6 - PADDING);
                 //     }
                 // }
                 print(state)?;
@@ -304,17 +306,17 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
                 let mut selected = state.selected.clone();
                 selected.sort();
                 state.index = selected[0];
-                if state.index < state.lines - 6 - state.config.padding {
+                if state.index < state.lines - 6 - PADDING {
                     // caret is visible on the screen without any offset
                     state.offset = 0;
-                } else if state.index - state.offset > state.lines - 6 - state.config.padding {
-                    if state.list.len() - state.index <= state.config.padding {
+                } else if state.index - state.offset > state.lines - 6 - PADDING {
+                    if state.list.len() - state.index <= PADDING {
                         // caret is beyond the screen and (almost) at the end of the list
                         state.offset =
                             state.index - state.lines + 6 + state.list.len() - state.index - 1;
                     } else {
                         // caret is beyond the screen
-                        state.offset = state.index - (state.lines - 6 - state.config.padding);
+                        state.offset = state.index - (state.lines - 6 - PADDING);
                     }
                 }
                 print(state)?;
@@ -359,14 +361,33 @@ fn change_dir(state: &mut State, dir: FolderDir) -> Result<()> {
         FolderDir::Child => {
             if state.list.len() > 0 {
                 let entry = &state.list[state.index];
-                if entry.kind == EntryKind::Dir {
-                    state.path.push(&entry.file_name);
-                    state.index = 0;
-                    state.offset = 0;
-                    state.selected.clear();
-                    state.message = None;
-                    read_dir(state)?;
-                    print(state)?;
+                match entry.kind {
+                    EntryKind::Dir => {
+                        state.path.push(&entry.file_name);
+                        state.index = 0;
+                        state.offset = 0;
+                        state.selected.clear();
+                        state.message = None;
+                        read_dir(state)?;
+                        print(state)?;
+                    }
+                    EntryKind::File => {
+                        if let Some(default) = state.config.default.clone() {
+                            let status = Command::new("bash")
+                                .args(&["-c", &format!("{} {}", default, &entry.file_name)])
+                                .current_dir(&state.path)
+                                .status()
+                                .unwrap();
+                            if !status.success() {
+                                state.message = Some(Message::error("Unable to open file!"));
+                                print(state)?;
+                            }
+                        } else {
+                            state.message =
+                                Some(Message::info("No default app defined to open file"));
+                            print(state)?;
+                        }
+                    }
                 }
             }
         }

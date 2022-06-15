@@ -24,6 +24,7 @@ macro_rules! pad {
 }
 
 pub const APP_NAME: &'static str = "fx";
+pub const PADDING: usize = 2;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -58,8 +59,8 @@ pub enum EntryKind {
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {
-    // The offset to the top and bottom of the file list
-    pub padding: usize,
+    // The default app for opening files
+    pub default: Option<String>,
 }
 
 impl Config {
@@ -84,7 +85,7 @@ impl Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self { padding: 2 }
+        Self { default: None }
     }
 }
 
