@@ -23,7 +23,7 @@ macro_rules! pad {
     };
 }
 
-pub const APP_NAME: &'static str = "fx";
+pub const APP_NAME: &str = "fx";
 pub const PADDING: usize = 2;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -57,7 +57,7 @@ pub enum EntryKind {
     File,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Config {
     // The default app for opening files
     pub default: Option<String>,
@@ -68,24 +68,15 @@ impl Config {
         match config_path() {
             Some(config_path) => match fs::read_to_string(config_path) {
                 Ok(raw) => match toml::from_str(&raw) {
-                    Ok(config) => return Ok(config),
+                    Ok(config) => Ok(config),
                     Err(err) => {
-                        return Err(Error::new(&format!(
-                            "Invalid config file! Reason: {}",
-                            err.to_string()
-                        )))
+                        return Err(Error::new(&format!("Invalid config file! Reason: {}", err)))
                     }
                 },
-                Err(_) => return Ok(Config::default()),
+                Err(_) => Ok(Config::default()),
             },
-            None => return Err(Error::new("Unable to determine config path!")),
+            None => Err(Error::new("Unable to determine config path!")),
         }
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self { default: None }
     }
 }
 
@@ -176,7 +167,7 @@ pub struct Entry {
 impl Entry {
     // Returns the corresponding color for the file type
     pub fn to_color(&self) -> Color {
-        if self.file_name.starts_with(".") {
+        if self.file_name.starts_with('.') {
             return Color::Color256(247);
         }
         Color::White

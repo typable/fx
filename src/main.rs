@@ -102,7 +102,7 @@ fn update_loop(state: &mut State) -> Result<()> {
 
 fn do_search(state: &mut State) -> Result<()> {
     let input = state.input.clone().unwrap_or_default();
-    if input.len() == 0 {
+    if input.is_empty() {
         return Ok(());
     }
     match Regex::new(&input) {
@@ -125,7 +125,7 @@ fn do_search(state: &mut State) -> Result<()> {
 
 fn do_goto(state: &mut State) -> Result<()> {
     let input = state.input.clone().unwrap_or_default();
-    if input.len() == 0 {
+    if input.is_empty() {
         return Ok(());
     }
     match fs::canonicalize(&Path::new(&input)) {
@@ -164,7 +164,7 @@ fn prompt(state: &mut State, title: &str, f: &dyn Fn(&mut State) -> Result<()>) 
             }
             Key::Backspace => {
                 let mut search = state.input.clone().unwrap_or_default();
-                if search.len() > 0 && state.cursor > 0 {
+                if !search.is_empty() && state.cursor > 0 {
                     state.cursor -= 1;
                     search.remove(state.cursor);
                     state.input = Some(search);
@@ -225,18 +225,18 @@ fn prompt(state: &mut State, title: &str, f: &dyn Fn(&mut State) -> Result<()>) 
 fn move_caret(state: &mut State, movement: Move) -> Result<()> {
     match movement {
         Move::Down => {
-            if state.list.len() > 0 && state.index < state.list.len() - 1 {
+            if !state.list.is_empty() && state.index < state.list.len() - 1 {
                 state.index += 1;
-                if state.index >= state.lines + state.offset - 5 - PADDING {
-                    if state.list.len() - state.index > PADDING {
-                        state.offset += 1;
-                    }
+                if state.index >= state.lines + state.offset - 5 - PADDING
+                    && state.list.len() - state.index > PADDING
+                {
+                    state.offset += 1;
                 }
                 print(state)?;
             }
         }
         Move::Up => {
-            if state.list.len() > 0 && state.index > 0 {
+            if !state.list.is_empty() && state.index > 0 {
                 state.index -= 1;
                 if state.offset > 0 && state.index - state.offset < PADDING {
                     state.offset -= 1;
@@ -245,9 +245,9 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
             }
         }
         Move::Next => {
-            if state.list.len() > 0 && state.selected.len() > 0 {
+            if !state.list.is_empty() && !state.selected.is_empty() {
                 let mut selected = state.selected.clone();
-                selected.sort();
+                selected.sort_unstable();
                 let mut next = selected[0];
                 for index in selected {
                     if state.index < index {
@@ -273,9 +273,9 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
             }
         }
         Move::Prev => {
-            if state.list.len() > 0 && state.selected.len() > 0 {
+            if !state.list.is_empty() && !state.selected.is_empty() {
                 let mut selected = state.selected.clone();
-                selected.sort();
+                selected.sort_unstable();
                 let mut prev = selected[selected.len() - 1];
                 for index in selected.iter().cloned().rev() {
                     if state.index > index {
@@ -302,9 +302,9 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
             }
         }
         Move::First => {
-            if state.list.len() > 0 && state.selected.len() > 0 {
+            if !state.list.is_empty() && !state.selected.is_empty() {
                 let mut selected = state.selected.clone();
-                selected.sort();
+                selected.sort_unstable();
                 state.index = selected[0];
                 if state.index < state.lines - 6 - PADDING {
                     // caret is visible on the screen without any offset
@@ -323,14 +323,14 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
             }
         }
         Move::Top => {
-            if state.list.len() > 0 {
+            if !state.list.is_empty() {
                 state.index = 0;
                 state.offset = 0;
                 print(state)?;
             }
         }
         Move::Bottom => {
-            if state.list.len() > 0 {
+            if !state.list.is_empty() {
                 state.index = state.list.len() - 1;
                 if state.index < state.lines + 6 + state.list.len() - state.index - 1 {
                     state.offset = 0;
@@ -359,7 +359,7 @@ fn change_dir(state: &mut State, dir: FolderDir) -> Result<()> {
             }
         }
         FolderDir::Child => {
-            if state.list.len() > 0 {
+            if !state.list.is_empty() {
                 let entry = &state.list[state.index];
                 match entry.kind {
                     EntryKind::Dir => {
@@ -414,7 +414,7 @@ fn toggle_dotfiles(state: &mut State) -> Result<()> {
 }
 
 fn toggle_select(state: &mut State) -> Result<()> {
-    if state.list.len() > 0 {
+    if !state.list.is_empty() {
         let index = state.selected.iter().position(|i| i == &state.index);
         match index {
             Some(index) => {
@@ -431,7 +431,7 @@ fn toggle_select(state: &mut State) -> Result<()> {
 }
 
 fn select_all(state: &mut State) -> Result<()> {
-    if state.list.len() > 0 {
+    if !state.list.is_empty() {
         state.selected.clear();
         for i in 0..state.list.len() {
             state.selected.push(i);
@@ -463,7 +463,7 @@ fn read_dir(state: &mut State) -> io::Result<()> {
         let item = dir_entry?;
         let path = item.path();
         let file_name = item.file_name().into_string().unwrap();
-        if !state.show_dotfiles && file_name.starts_with(".") {
+        if !state.show_dotfiles && file_name.starts_with('.') {
             continue;
         }
         let kind = match &path.is_dir() {
