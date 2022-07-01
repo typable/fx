@@ -92,9 +92,8 @@ fn update_loop(state: &mut State) -> Result<()> {
             }
             Key::Char('z') => {
                 let key = state.term.read_key()?;
-                match key {
-                    Key::Char('z') => change_dir(state, FolderDir::Home)?,
-                    _ => (),
+                if let Key::Char('z') = key {
+                    change_dir(state, FolderDir::Home)?;
                 }
             }
             Key::Char('/') => prompt(state, "search", &do_search)?,
@@ -402,7 +401,7 @@ fn change_dir(state: &mut State, dir: FolderDir) -> Result<()> {
         }
         FolderDir::Home => {
             if let Some(home) = dirs::home_dir() {
-                state.path = home.to_path_buf();
+                state.path = home;
                 state.index = 0;
                 state.offset = 0;
                 state.selected.clear();
