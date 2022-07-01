@@ -15,6 +15,7 @@ use fx::State;
 use fx::MARGIN;
 use fx::PADDING;
 use fx::WIDTH;
+use glob::glob;
 use regex::Regex;
 use std::env;
 use std::fs;
@@ -97,6 +98,7 @@ fn update_loop(state: &mut State) -> Result<()> {
                 }
             }
             Key::Char('/') => prompt(state, "search", &do_search)?,
+            Key::Char('f') => prompt(state, "find", &do_find)?,
             Key::Escape => {
                 state.selected.clear();
                 state.message = None;
@@ -152,6 +154,27 @@ fn do_goto(state: &mut State) -> Result<()> {
     Ok(())
 }
 
+fn do_find(state: &mut State) -> Result<()> {
+    let input = state.input.clone().unwrap_or_default();
+    if input.is_empty() {
+        return Ok(());
+    }
+    match glob(&format!("{}/**/{}", state.path.display(), input)) {
+        Ok(list) => {
+            state.list.clear();
+            for entry in list {
+                state.list.push(Entry {
+                    file_name: entry.unwrap().display().to_string(),
+                    kind: EntryKind::File,
+                });
+            }
+        }
+        Err(_) => {
+            state.message = Some(Message::error("Invalid pattern!"));
+        }
+    }
+    Ok(())
+}
 fn prompt(state: &mut State, title: &str, f: &dyn Fn(&mut State) -> Result<()>) -> Result<()> {
     let shift = 3 + title.len() + 1;
     state.title = Some(title.into());
