@@ -1,6 +1,7 @@
 use console::Color;
 use console::Term;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::io;
@@ -149,6 +150,10 @@ pub struct State {
     pub cursor: usize,
     // The flag if dotfiles should be listed
     pub show_dotfiles: bool,
+    // The history index
+    pub history_index: usize,
+    // The history
+    pub history: HashMap<String, Vec<String>>,
 }
 
 impl State {
@@ -168,6 +173,8 @@ impl State {
             input: None,
             cursor: 0,
             show_dotfiles: true,
+            history_index: 0,
+            history: HashMap::new(),
         }
     }
 }

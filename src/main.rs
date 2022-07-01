@@ -154,10 +154,17 @@ fn do_goto(state: &mut State) -> Result<()> {
 
 fn prompt(state: &mut State, title: &str, f: &dyn Fn(&mut State) -> Result<()>) -> Result<()> {
     let shift = 3 + title.len() + 1;
+    let key = title.to_string();
+    if !state.history.contains_key(&key) {
+        state.history.insert(key.clone(), Vec::new());
+    }
+    let mut histories = state.history.clone();
+    let history = histories.get_mut(&key).unwrap();
     state.title = Some(title.into());
     state.mode = Mode::Prompt;
     state.input = None;
     state.cursor = 0;
+    state.history_index = 0;
     print(state)?;
     state.term.move_cursor_to(shift, 1)?;
     state.term.show_cursor()?;
@@ -217,7 +224,37 @@ fn prompt(state: &mut State, title: &str, f: &dyn Fn(&mut State) -> Result<()>) 
                     state.term.show_cursor()?;
                 }
             }
+            Key::ArrowUp => {
+                if !history.is_empty() && state.history_index < history.len() {
+                    state.history_index += 1;
+                    state.input = Some(history[history.len() - state.history_index].clone());
+                    state.cursor = state.input.clone().unwrap_or_default().len();
+                    state.term.hide_cursor()?;
+                    print(state)?;
+                    state.term.move_cursor_to(shift + state.cursor, 1)?;
+                    state.term.show_cursor()?;
+                }
+            }
+            Key::ArrowDown => {
+                if !history.is_empty() {
+                    if state.history_index > 1 {
+                        state.history_index -= 1;
+                        state.input = Some(history[history.len() - state.history_index].clone());
+                    } else {
+                        state.history_index = 0;
+                        state.input = None;
+                    }
+                    state.cursor = state.input.clone().unwrap_or_default().len();
+                    state.term.hide_cursor()?;
+                    print(state)?;
+                    state.term.move_cursor_to(shift + state.cursor, 1)?;
+                    state.term.show_cursor()?;
+                }
+            }
             Key::Enter => {
+                if let Some(input) = state.input.clone() {
+                    history.push(input);
+                }
                 state.mode = Mode::Normal;
                 state.term.hide_cursor()?;
                 f(state)?;
@@ -227,6 +264,7 @@ fn prompt(state: &mut State, title: &str, f: &dyn Fn(&mut State) -> Result<()>) 
             _ => (),
         }
     }
+    state.history = histories;
     Ok(())
 }
 
