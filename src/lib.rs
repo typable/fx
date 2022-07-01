@@ -62,6 +62,7 @@ pub enum Move {
 pub enum FolderDir {
     Parent,
     Child,
+    Home,
 }
 
 #[derive(Clone, PartialEq)]

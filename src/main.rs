@@ -90,6 +90,13 @@ fn update_loop(state: &mut State) -> Result<()> {
                     _ => (),
                 }
             }
+            Key::Char('z') => {
+                let key = state.term.read_key()?;
+                match key {
+                    Key::Char('z') => change_dir(state, FolderDir::Home)?,
+                    _ => (),
+                }
+            }
             Key::Char('/') => prompt(state, "search", &do_search)?,
             Key::Escape => {
                 state.selected.clear();
@@ -229,7 +236,7 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
         Move::Down => {
             if !state.list.is_empty() && state.index < state.list.len() - 1 {
                 state.index += 1;
-                if state.index >= state.lines + state.offset - 5 - PADDING
+                if state.index >= state.lines + state.offset - MARGIN + 1 - PADDING
                     && state.list.len() - state.index > PADDING
                 {
                     state.offset += 1;
@@ -391,6 +398,17 @@ fn change_dir(state: &mut State, dir: FolderDir) -> Result<()> {
                         }
                     }
                 }
+            }
+        }
+        FolderDir::Home => {
+            if let Some(home) = dirs::home_dir() {
+                state.path = home.to_path_buf();
+                state.index = 0;
+                state.offset = 0;
+                state.selected.clear();
+                state.message = None;
+                read_dir(state)?;
+                print(state)?;
             }
         }
     }
