@@ -21,10 +21,23 @@ macro_rules! pad {
     ($str:expr, $width:expr) => {
         &format!("{: <width$}", $str, width = $width)
     };
+    ($str:expr, $width:expr, $max_width:expr) => {
+        &format!(
+            "{: <width$}",
+            if $str.len() > $max_width {
+                $str.split_at($max_width).0
+            } else {
+                $str
+            },
+            width = $width
+        )
+    };
 }
 
 pub const APP_NAME: &str = "fx";
+pub const MARGIN: usize = 8;
 pub const PADDING: usize = 2;
+pub const WIDTH: usize = 40;
 
 pub type Result<T> = std::result::Result<T, Error>;
 

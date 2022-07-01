@@ -12,7 +12,9 @@ use fx::Mode;
 use fx::Move;
 use fx::Result;
 use fx::State;
+use fx::MARGIN;
 use fx::PADDING;
+use fx::WIDTH;
 use regex::Regex;
 use std::env;
 use std::fs;
@@ -256,17 +258,17 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
                     }
                 }
                 state.index = next;
-                if state.index < state.lines - 6 - PADDING {
+                if state.index < state.lines - MARGIN - PADDING {
                     // caret is visible on the screen without any offset
                     state.offset = 0;
-                } else if state.index - state.offset > state.lines - 6 - PADDING {
+                } else if state.index - state.offset > state.lines - MARGIN - PADDING {
                     if state.list.len() - state.index <= PADDING {
                         // caret is beyond the screen and (almost) at the end of the list
                         state.offset =
-                            state.index - state.lines + 6 + state.list.len() - state.index - 1;
+                            state.index - state.lines + MARGIN + state.list.len() - state.index - 1;
                     } else {
                         // caret is beyond the screen
-                        state.offset = state.index - (state.lines - 6 - PADDING);
+                        state.offset = state.index - (state.lines - MARGIN - PADDING);
                     }
                 }
                 print(state)?;
@@ -285,17 +287,17 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
                 }
                 state.index = prev;
                 // TODO: Adjust logic in order to set offset correctly
-                // if state.index < state.lines - 6 - PADDING {
+                // if state.index < state.lines - MARGIN - PADDING {
                 //     // caret is visible on the screen without any offset
                 //     state.offset = 0;
-                // } else if state.index - state.offset > state.lines - 6 - PADDING {
+                // } else if state.index - state.offset > state.lines - MARGIN - PADDING {
                 //     if state.list.len() - state.index <= PADDING {
                 //         // caret is beyond the screen and (almost) at the end of the list
                 //         state.offset =
-                //             state.index - state.lines + 6 + state.list.len() - state.index - 1;
+                //             state.index - state.lines + MARGIN + state.list.len() - state.index - 1;
                 //     } else {
                 //         // caret is beyond the screen
-                //         state.offset = state.index - (state.lines - 6 - PADDING);
+                //         state.offset = state.index - (state.lines - MARGIN - PADDING);
                 //     }
                 // }
                 print(state)?;
@@ -306,17 +308,17 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
                 let mut selected = state.selected.clone();
                 selected.sort_unstable();
                 state.index = selected[0];
-                if state.index < state.lines - 6 - PADDING {
+                if state.index < state.lines - MARGIN - PADDING {
                     // caret is visible on the screen without any offset
                     state.offset = 0;
-                } else if state.index - state.offset > state.lines - 6 - PADDING {
+                } else if state.index - state.offset > state.lines - MARGIN - PADDING {
                     if state.list.len() - state.index <= PADDING {
                         // caret is beyond the screen and (almost) at the end of the list
                         state.offset =
-                            state.index - state.lines + 6 + state.list.len() - state.index - 1;
+                            state.index - state.lines + MARGIN + state.list.len() - state.index - 1;
                     } else {
                         // caret is beyond the screen
-                        state.offset = state.index - (state.lines - 6 - PADDING);
+                        state.offset = state.index - (state.lines - MARGIN - PADDING);
                     }
                 }
                 print(state)?;
@@ -332,11 +334,11 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
         Move::Bottom => {
             if !state.list.is_empty() {
                 state.index = state.list.len() - 1;
-                if state.index < state.lines + 6 + state.list.len() - state.index - 1 {
+                if state.index < state.lines + MARGIN + state.list.len() - state.index - 1 {
                     state.offset = 0;
                 } else {
                     state.offset =
-                        state.index - state.lines + 6 + state.list.len() - state.index - 1;
+                        state.index - state.lines + MARGIN + state.list.len() - state.index - 1;
                 }
                 print(state)?;
             }
@@ -493,8 +495,16 @@ fn print(state: &mut State) -> Result<()> {
             print_head(state)?;
             continue;
         }
-        if i > 2 && i < lines - 2 {
-            let index = i - 3 + state.offset;
+        if i == 3 {
+            let line = format!("{}{}", pad!("NAME", WIDTH, WIDTH - 2), pad!("TYPE", 10, 8));
+            state.term.write_str(&format!("   {}", line))?;
+        }
+        if i == 4 {
+            let line = "-".repeat(WIDTH + 10);
+            state.term.write_str(&format!("   {}", line))?;
+        }
+        if i > 4 && i < lines - 2 {
+            let index = i - 5 + state.offset;
             if state.list.len() > index {
                 print_entry(state, index)?;
                 continue;
@@ -540,13 +550,14 @@ fn print_entry(state: &mut State, index: usize) -> Result<()> {
     };
     let line = format!(
         "{}{}",
-        pad!(&entry.file_name, 40),
+        pad!(&entry.file_name, WIDTH, WIDTH - 2),
         pad!(
             match entry.kind {
                 EntryKind::Dir => "dir",
                 EntryKind::File => "file",
             },
-            10
+            10,
+            8
         )
     );
     let value = match state.selected.contains(&index) {
