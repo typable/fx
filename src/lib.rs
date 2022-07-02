@@ -7,6 +7,7 @@ use std::fs;
 use std::io;
 use std::path::Path;
 use std::path::PathBuf;
+use std::time::SystemTime;
 
 #[macro_export]
 macro_rules! color {
@@ -213,16 +214,10 @@ impl State {
 pub struct Entry {
     pub file_name: String,
     pub kind: EntryKind,
+    pub created: Option<SystemTime>,
 }
 
 impl Entry {
-    // Returns the corresponding color for the file type
-    pub fn to_color(&self) -> Color {
-        if self.file_name.starts_with('.') {
-            return Color::Color256(247);
-        }
-        Color::White
-    }
     pub fn is_dir(&self) -> bool {
         EntryKind::Dir.eq(&self.kind)
     }

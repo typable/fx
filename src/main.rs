@@ -1,3 +1,5 @@
+use chrono::offset::Local;
+use chrono::DateTime;
 use console::Color;
 use console::Key;
 use fx::color;
@@ -72,7 +74,17 @@ fn update_loop(state: &mut State) -> Result<()> {
     loop {
         let key = state.term.read_key()?;
         match key {
-            Key::Char('q') => break,
+            Key::Char('q') => {
+                state.set_message(Message::warn("Confirm quit: [y]"));
+                print(state)?;
+                let key = state.term.read_key()?;
+                match key {
+                    Key::Char('y') => break,
+                    _ => (),
+                }
+                state.message = None;
+                print(state)?;
+            }
             Key::Char('j') => move_caret(state, Move::Down)?,
             Key::Char('k') => move_caret(state, Move::Up)?,
             Key::Char('h') => change_dir(state, FolderDir::Parent)?,
@@ -87,7 +99,6 @@ fn update_loop(state: &mut State) -> Result<()> {
                 match key {
                     Key::Char('g') => move_caret(state, Move::Top)?,
                     Key::Char('e') => move_caret(state, Move::Bottom)?,
-                    Key::Char('t') => prompt(state, "goto", &do_goto)?,
                     _ => (),
                 }
             }
@@ -97,6 +108,7 @@ fn update_loop(state: &mut State) -> Result<()> {
                     change_dir(state, FolderDir::Home)?;
                 }
             }
+            Key::Char('t') => prompt(state, "goto", &do_goto)?,
             Key::Char('/') => prompt(state, "search", &do_search)?,
             Key::Enter => open_file(state)?,
             Key::Escape => {
@@ -472,8 +484,8 @@ fn open_file(state: &mut State) -> Result<()> {
         .unwrap();
     if !status.success() {
         state.message = Some(Message::error("Unable to open file!"));
-        print(state)?;
     }
+    print(state)?;
     Ok(())
 }
 
@@ -556,7 +568,15 @@ fn read_dir(state: &mut State) -> io::Result<()> {
         if metadata.is_symlink() {
             kind = EntryKind::Symlink;
         }
-        let entry = Entry { file_name, kind };
+        let created = match metadata.created() {
+            Ok(time) => Some(time),
+            Err(_) => None,
+        };
+        let entry = Entry {
+            file_name,
+            kind,
+            created,
+        };
         match entry.kind {
             EntryKind::File => files.push(entry),
             EntryKind::Dir => dirs.push(entry),
@@ -582,11 +602,16 @@ fn print(state: &mut State) -> Result<()> {
             continue;
         }
         if i == 3 {
-            let line = format!("{}{}", pad!("NAME", WIDTH, WIDTH - 2), pad!("TYPE", 10, 8));
+            let line = format!(
+                "{}{}{}",
+                pad!("NAME", WIDTH, WIDTH - 2),
+                pad!("TYPE", 10, 8),
+                pad!("CREATED", 21, 19),
+            );
             state.term.write_str(&format!("   {}", line))?;
         }
         if i == 4 {
-            let line = "-".repeat(WIDTH + 10);
+            let line = "-".repeat(WIDTH + 10 + 21);
             state.term.write_str(&format!("   {}", line))?;
         }
         if i > 4 && i < lines - 2 {
@@ -631,12 +656,19 @@ fn print_entry(state: &mut State, index: usize) -> Result<()> {
         " "
     };
     let color = match entry.kind {
-        EntryKind::File => entry.to_color(),
+        EntryKind::File => Color::White,
         EntryKind::Dir => Color::Blue,
         EntryKind::Symlink => Color::Magenta,
     };
+    let created = match entry.created {
+        Some(time) => {
+            let datetime: DateTime<Local> = time.into();
+            datetime.format("%d.%m.%Y %I:%M %P").to_string()
+        }
+        None => "".to_string(),
+    };
     let line = format!(
-        "{}{}",
+        "{}{}{}",
         pad!(&entry.file_name, WIDTH, WIDTH - 2),
         pad!(
             match entry.kind {
@@ -646,7 +678,8 @@ fn print_entry(state: &mut State, index: usize) -> Result<()> {
             },
             10,
             8
-        )
+        ),
+        pad!(&created, 21, 19)
     );
     let value = match state.selected.contains(&index) {
         true => color!(&line, Color::Black, color).to_string(),
