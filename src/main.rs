@@ -97,6 +97,7 @@ fn update_loop(state: &mut State) -> Result<()> {
                 }
             }
             Key::Char('/') => prompt(state, "search", &do_search)?,
+            Key::Enter => open_file(state)?,
             Key::Escape => {
                 state.selected.clear();
                 state.message = None;
@@ -405,37 +406,22 @@ fn change_dir(state: &mut State, dir: FolderDir) -> Result<()> {
             }
         }
         FolderDir::Child => {
-            if !state.list.is_empty() {
-                let entry = &state.list[state.index];
-                match entry.kind {
-                    EntryKind::Dir => {
-                        state.path.push(&entry.file_name);
-                        state.index = 0;
-                        state.offset = 0;
-                        state.selected.clear();
-                        state.message = None;
-                        read_dir(state)?;
-                        print(state)?;
-                    }
-                    EntryKind::File => {
-                        if let Some(default) = state.config.default.clone() {
-                            let status = Command::new("bash")
-                                .args(&["-c", &format!("{} {}", default, &entry.file_name)])
-                                .current_dir(&state.path)
-                                .status()
-                                .unwrap();
-                            if !status.success() {
-                                state.message = Some(Message::error("Unable to open file!"));
-                                print(state)?;
-                            }
-                        } else {
-                            state.message =
-                                Some(Message::info("No default app defined to open file"));
-                            print(state)?;
-                        }
-                    }
-                }
+            let entry = match state.get_current() {
+                Some(entry) => entry,
+                None => return Ok(()),
+            };
+            if entry.is_file() {
+                state.message = Some(Message::info("Entry is type of file!"));
+                print(state)?;
+                return Ok(());
             }
+            state.path.push(entry.file_name.clone());
+            state.index = 0;
+            state.offset = 0;
+            state.selected.clear();
+            state.message = None;
+            read_dir(state)?;
+            print(state)?;
         }
         FolderDir::Home => {
             if let Some(home) = dirs::home_dir() {
@@ -448,6 +434,37 @@ fn change_dir(state: &mut State, dir: FolderDir) -> Result<()> {
                 print(state)?;
             }
         }
+    }
+    Ok(())
+}
+
+fn open_file(state: &mut State) -> Result<()> {
+    let entry = match state.get_current() {
+        Some(entry) => entry,
+        None => return Ok(()),
+    };
+    if entry.is_dir() {
+        state.set_message(Message::warn("Entry is not a file!"));
+        print(state)?;
+        return Ok(());
+    }
+    let file_ext = entry.file_name.split('.').last().unwrap_or_default();
+    let app = match state.config.get_app(file_ext) {
+        Some(app) => app,
+        None => {
+            state.set_message(Message::warn("No app for given file extension specified!"));
+            print(state)?;
+            return Ok(());
+        }
+    };
+    let status = Command::new("bash")
+        .args(&["-c", &format!("{} {}", app, &entry.file_name)])
+        .current_dir(&state.path)
+        .status()
+        .unwrap();
+    if !status.success() {
+        state.message = Some(Message::error("Unable to open file!"));
+        print(state)?;
     }
     Ok(())
 }

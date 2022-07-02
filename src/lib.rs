@@ -76,6 +76,8 @@ pub enum EntryKind {
 pub struct Config {
     // The default app for opening files
     pub default: Option<String>,
+    // The apps used for different file extensions
+    pub apps: HashMap<String, Vec<String>>,
 }
 
 impl Config {
@@ -93,6 +95,15 @@ impl Config {
             None => Err(Error::new("Unable to determine config path!")),
         }
     }
+    // Get app for file extension
+    pub fn get_app(&self, file_ext: &str) -> Option<String> {
+        for (app, exts) in &self.apps {
+            if exts.contains(&file_ext.to_string()) {
+                return Some(app.clone());
+            }
+        }
+        self.default.clone()
+    }
 }
 
 pub struct Message {
@@ -105,6 +116,12 @@ impl Message {
         Self {
             text: text.to_string(),
             color: Color::White,
+        }
+    }
+    pub fn warn(text: &str) -> Self {
+        Self {
+            text: text.to_string(),
+            color: Color::Yellow,
         }
     }
     pub fn error(text: &str) -> Self {
@@ -177,6 +194,17 @@ impl State {
             history: HashMap::new(),
         }
     }
+    // Get currently selected entry in list
+    pub fn get_current(&self) -> Option<&Entry> {
+        if self.list.is_empty() {
+            return None;
+        }
+        Some(&self.list[self.index])
+    }
+    // Set message
+    pub fn set_message(&mut self, message: Message) {
+        self.message = Some(message);
+    }
 }
 
 #[derive(Clone)]
@@ -192,6 +220,12 @@ impl Entry {
             return Color::Color256(247);
         }
         Color::White
+    }
+    pub fn is_dir(&self) -> bool {
+        EntryKind::Dir.eq(&self.kind)
+    }
+    pub fn is_file(&self) -> bool {
+        EntryKind::File.eq(&self.kind)
     }
 }
 
