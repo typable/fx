@@ -478,7 +478,7 @@ fn open_file(state: &mut State) -> Result<()> {
         }
     };
     let status = Command::new("bash")
-        .args(&["-c", &format!("{} {}", app, &entry.file_name)])
+        .args(&["-c", &format!("{} '{}'", app, &entry.file_name)])
         .current_dir(&state.path)
         .status()
         .unwrap();

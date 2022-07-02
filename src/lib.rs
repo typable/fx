@@ -101,7 +101,7 @@ impl Config {
     // Get app for file extension
     pub fn get_app(&self, file_ext: &str) -> Option<String> {
         for (app, exts) in &self.apps {
-            if exts.contains(&file_ext.to_string()) {
+            if exts.contains(&file_ext.to_string().to_ascii_lowercase()) {
                 return Some(app.clone());
             }
         }
