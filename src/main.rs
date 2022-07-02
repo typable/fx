@@ -1,6 +1,7 @@
 use console::Color;
 use console::Key;
 use fx::color;
+use fx::expand_tilde;
 use fx::pad;
 use fx::Config;
 use fx::Entry;
@@ -137,7 +138,14 @@ fn do_goto(state: &mut State) -> Result<()> {
     if input.is_empty() {
         return Ok(());
     }
-    match fs::canonicalize(&Path::new(&input)) {
+    let path = match expand_tilde(Path::new(&input).to_path_buf()) {
+        Some(path) => path,
+        None => {
+            state.message = Some(Message::error("Invalid path!"));
+            return Ok(());
+        }
+    };
+    match fs::canonicalize(path) {
         Ok(path) => {
             state.path = path;
             state.index = 0;

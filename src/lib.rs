@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::io;
+use std::path::Path;
 use std::path::PathBuf;
 
 #[macro_export]
@@ -252,6 +253,23 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", &self.message)
     }
+}
+
+pub fn expand_tilde(path: PathBuf) -> Option<PathBuf> {
+    if !path.starts_with("~") {
+        return Some(path);
+    }
+    if path == Path::new("~") {
+        return dirs::home_dir();
+    }
+    let mut home = match dirs::home_dir() {
+        Some(home) => home,
+        None => return None,
+    };
+    for item in path.iter().skip(1) {
+        home.push(item);
+    }
+    Some(home)
 }
 
 fn config_path() -> Option<PathBuf> {
