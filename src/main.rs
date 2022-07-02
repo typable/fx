@@ -540,26 +540,32 @@ fn set_select_message(state: &mut State) {
 // Reads the current directory
 fn read_dir(state: &mut State) -> io::Result<()> {
     let mut dirs = Vec::new();
+    let mut symlinks = Vec::new();
     let mut files = Vec::new();
     for dir_entry in fs::read_dir(&state.path)? {
         let item = dir_entry?;
-        let path = item.path();
         let file_name = item.file_name().into_string().unwrap();
         if !state.show_dotfiles && file_name.starts_with('.') {
             continue;
         }
-        let kind = match &path.is_dir() {
-            true => EntryKind::Dir,
-            false => EntryKind::File,
-        };
+        let metadata = item.metadata()?;
+        let mut kind = EntryKind::File;
+        if metadata.is_dir() {
+            kind = EntryKind::Dir;
+        }
+        if metadata.is_symlink() {
+            kind = EntryKind::Symlink;
+        }
         let entry = Entry { file_name, kind };
         match entry.kind {
-            EntryKind::Dir => dirs.push(entry),
             EntryKind::File => files.push(entry),
+            EntryKind::Dir => dirs.push(entry),
+            EntryKind::Symlink => symlinks.push(entry),
         }
     }
     let mut list = Vec::new();
     list.extend_from_slice(&dirs);
+    list.extend_from_slice(&symlinks);
     list.extend_from_slice(&files);
     state.list = list;
     Ok(())
@@ -625,16 +631,18 @@ fn print_entry(state: &mut State, index: usize) -> Result<()> {
         " "
     };
     let color = match entry.kind {
-        EntryKind::Dir => Color::Blue,
         EntryKind::File => entry.to_color(),
+        EntryKind::Dir => Color::Blue,
+        EntryKind::Symlink => Color::Magenta,
     };
     let line = format!(
         "{}{}",
         pad!(&entry.file_name, WIDTH, WIDTH - 2),
         pad!(
             match entry.kind {
-                EntryKind::Dir => "dir",
                 EntryKind::File => "file",
+                EntryKind::Dir => "dir",
+                EntryKind::Symlink => "symlink",
             },
             10,
             8

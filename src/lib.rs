@@ -69,8 +69,9 @@ pub enum FolderDir {
 
 #[derive(Clone, PartialEq)]
 pub enum EntryKind {
-    Dir,
     File,
+    Dir,
+    Symlink,
 }
 
 #[derive(Default, Serialize, Deserialize)]
