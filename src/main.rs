@@ -3,9 +3,12 @@ use chrono::DateTime;
 use console::Color;
 use console::Key;
 use fx::color;
+use fx::consts::MARGIN;
+use fx::consts::PADDING;
 use fx::error::Error;
 use fx::expand_tilde;
 use fx::pad;
+use fx::Column;
 use fx::Config;
 use fx::Entry;
 use fx::EntryKind;
@@ -15,9 +18,6 @@ use fx::Mode;
 use fx::Move;
 use fx::Result;
 use fx::State;
-use fx::MARGIN;
-use fx::PADDING;
-use fx::WIDTH;
 use regex::Regex;
 use std::env;
 use std::fs;
@@ -601,17 +601,22 @@ fn print(state: &mut State) -> Result<()> {
             continue;
         }
         if i == 3 {
-            let line = format!(
-                "{}{}{}",
-                pad!("NAME", WIDTH, WIDTH - 2),
-                pad!("TYPE", 10, 8),
-                pad!("CREATED", 21, 19),
-            );
-            state.term.write_str(&format!("   {}", line))?;
+            state.term.write_str("   ")?;
+            for column in &state.columns {
+                let width = column.get_width();
+                state
+                    .term
+                    .write_str(pad!(&format!("{}", column), width, width - 2))?;
+            }
         }
         if i == 4 {
-            let line = "-".repeat(WIDTH + 10 + 21);
-            state.term.write_str(&format!("   {}", line))?;
+            let mut total_width = 0;
+            for column in &state.columns {
+                total_width += column.get_width();
+            }
+            state
+                .term
+                .write_str(&format!("   {}", "-".repeat(total_width)))?;
         }
         if i > 4 && i < lines - 2 {
             let index = i - 5 + state.offset;
@@ -649,42 +654,44 @@ fn print_head(state: &mut State) -> Result<()> {
 
 fn print_entry(state: &mut State, index: usize) -> Result<()> {
     let entry = &state.list[index];
-    let caret = if state.mode == Mode::Normal && state.index == index {
-        ">"
+    if state.mode == Mode::Normal && state.index == index {
+        state.term.write_str(" > ")?;
     } else {
-        " "
+        state.term.write_str("   ")?;
     };
     let color = match entry.kind {
         EntryKind::File => Color::White,
         EntryKind::Dir => Color::Blue,
         EntryKind::Symlink => Color::Magenta,
     };
-    let created = match entry.created {
-        Some(time) => {
-            let datetime: DateTime<Local> = time.into();
-            datetime.format("%d.%m.%Y %I:%M %P").to_string()
-        }
-        None => "".to_string(),
-    };
-    let line = format!(
-        "{}{}{}",
-        pad!(&entry.file_name, WIDTH, WIDTH - 2),
-        pad!(
-            match entry.kind {
-                EntryKind::File => "file",
-                EntryKind::Dir => "dir",
-                EntryKind::Symlink => "symlink",
+    for column in &state.columns {
+        let width = column.get_width();
+        let value = pad!(
+            match column {
+                Column::Name => entry.file_name.clone(),
+                Column::Type => (match entry.kind {
+                    EntryKind::File => "file",
+                    EntryKind::Dir => "dir",
+                    EntryKind::Symlink => "symlink",
+                })
+                .to_string(),
+                Column::Created => match entry.created {
+                    Some(time) => {
+                        let datetime: DateTime<Local> = time.into();
+                        datetime.format("%d.%m.%Y %I:%M %P").to_string()
+                    }
+                    None => "".to_string(),
+                },
             },
-            10,
-            8
-        ),
-        pad!(&created, 21, 19)
-    );
-    let value = match state.selected.contains(&index) {
-        true => color!(&line, Color::Black, color).to_string(),
-        false => color!(&line, color).to_string(),
-    };
-    state.term.write_line(&format!(" {} {}", caret, value))?;
+            width,
+            width - 2
+        );
+        match state.selected.contains(&index) {
+            true => state.term.write_str(color!(&value, Color::Black, color))?,
+            false => state.term.write_str(color!(&value, color))?,
+        };
+    }
+    state.term.write_line("")?;
     Ok(())
 }
 

@@ -7,7 +7,6 @@ use crate::Config;
 use crate::Entry;
 use crate::Message;
 use crate::Mode;
-use crate::WIDTH;
 
 pub struct State {
     // The config file
@@ -48,16 +47,13 @@ pub struct State {
 
 impl State {
     pub fn new(config: Config, path: PathBuf) -> Self {
+        let columns = config.get_columns();
         Self {
             config,
             term: Term::stdout(),
             path,
             mode: Mode::Normal,
-            columns: vec![
-                Column::new("name", WIDTH),
-                Column::new("type", 10),
-                Column::new("created", 21),
-            ],
+            columns,
             index: 0,
             list: Vec::new(),
             lines: 0,

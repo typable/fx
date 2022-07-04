@@ -1,4 +1,6 @@
 use console::Color;
+use serde::Deserialize;
+use serde::Serialize;
 use std::fmt;
 use std::path::Path;
 use std::path::PathBuf;
@@ -7,6 +9,7 @@ use std::time::SystemTime;
 mod config;
 mod state;
 
+pub mod consts;
 pub mod error;
 
 use error::Error;
@@ -33,19 +36,14 @@ macro_rules! pad {
         &format!(
             "{: <width$}",
             if $str.len() > $max_width {
-                $str.split_at($max_width).0
+                $str.split_at($max_width).0.to_string()
             } else {
-                $str
+                $str.to_string()
             },
             width = $width
         )
     };
 }
-
-pub const APP_NAME: &str = "fx";
-pub const MARGIN: usize = 8;
-pub const PADDING: usize = 2;
-pub const WIDTH: usize = 40;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -128,19 +126,34 @@ impl Entry {
     }
 }
 
-pub struct Column {
-    pub name: String,
-    pub width: usize,
-    pub visible: bool,
+#[derive(Clone, Serialize, Deserialize)]
+pub enum Column {
+    Name,
+    Type,
+    Created,
 }
 
 impl Column {
-    pub fn new(name: &str, width: usize) -> Self {
-        Self {
-            name: name.to_string(),
-            width,
-            visible: true,
+    pub fn get_width(&self) -> usize {
+        match *self {
+            Self::Name => 40,
+            Self::Type => 10,
+            Self::Created => 22,
         }
+    }
+}
+
+impl fmt::Display for Column {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match *self {
+                Self::Name => "NAME",
+                Self::Type => "TYPE",
+                Self::Created => "CREATED",
+            }
+        )
     }
 }
 

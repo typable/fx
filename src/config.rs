@@ -4,14 +4,18 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
+use crate::consts::APP_NAME;
+use crate::consts::COLUMNS;
+use crate::Column;
 use crate::Error;
 use crate::Result;
-use crate::APP_NAME;
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Config {
     // The default app for opening files
     pub default: Option<String>,
+    // The visible columns
+    pub columns: Option<Vec<Column>>,
     // The apps used for different file extensions
     pub apps: Option<HashMap<String, Vec<String>>>,
 }
@@ -29,6 +33,13 @@ impl Config {
                 Err(_) => Ok(Config::default()),
             },
             None => Err(Error::new("Unable to determine config path!")),
+        }
+    }
+    // Get visible columns
+    pub fn get_columns(&self) -> Vec<Column> {
+        match &self.columns {
+            Some(columns) => columns.clone(),
+            None => COLUMNS.to_vec(),
         }
     }
     // Get app for file extension
