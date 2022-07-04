@@ -102,7 +102,7 @@ impl Config {
     pub fn get_app(&self, file_ext: &str) -> Option<String> {
         if self.apps.is_some() {
             for (app, exts) in self.apps.as_ref().unwrap() {
-                if exts.contains(&file_ext.to_string().to_ascii_lowercase()) {
+                if exts.contains(&file_ext.to_string().to_lowercase()) {
                     return Some(app.clone());
                 }
             }
@@ -152,6 +152,8 @@ pub struct State {
     pub path: PathBuf,
     // The current interaction mode
     pub mode: Mode,
+    // The displayable columns
+    pub columns: Vec<Column>,
     // The current index in the file list
     pub index: usize,
     // The list of files in the current directory
@@ -185,6 +187,11 @@ impl State {
             term: Term::stdout(),
             path,
             mode: Mode::Normal,
+            columns: vec![
+                Column::new("name", WIDTH),
+                Column::new("type", 10),
+                Column::new("created", 21),
+            ],
             index: 0,
             list: Vec::new(),
             lines: 0,
@@ -250,6 +257,22 @@ impl From<io::Error> for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", &self.message)
+    }
+}
+
+pub struct Column {
+    pub name: String,
+    pub width: usize,
+    pub visible: bool,
+}
+
+impl Column {
+    pub fn new(name: &str, width: usize) -> Self {
+        Self {
+            name: name.to_string(),
+            width,
+            visible: true,
+        }
     }
 }
 
