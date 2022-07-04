@@ -80,7 +80,7 @@ pub struct Config {
     // The default app for opening files
     pub default: Option<String>,
     // The apps used for different file extensions
-    pub apps: HashMap<String, Vec<String>>,
+    pub apps: Option<HashMap<String, Vec<String>>>,
 }
 
 impl Config {
@@ -100,9 +100,11 @@ impl Config {
     }
     // Get app for file extension
     pub fn get_app(&self, file_ext: &str) -> Option<String> {
-        for (app, exts) in &self.apps {
-            if exts.contains(&file_ext.to_string().to_ascii_lowercase()) {
-                return Some(app.clone());
+        if self.apps.is_some() {
+            for (app, exts) in self.apps.as_ref().unwrap() {
+                if exts.contains(&file_ext.to_string().to_ascii_lowercase()) {
+                    return Some(app.clone());
+                }
             }
         }
         self.default.clone()
