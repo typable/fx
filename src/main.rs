@@ -3,12 +3,12 @@ use chrono::DateTime;
 use console::Color;
 use console::Key;
 use fx::color;
+use fx::error::Error;
 use fx::expand_tilde;
 use fx::pad;
 use fx::Config;
 use fx::Entry;
 use fx::EntryKind;
-use fx::Error;
 use fx::FolderDir;
 use fx::Message;
 use fx::Mode;
@@ -78,9 +78,8 @@ fn update_loop(state: &mut State) -> Result<()> {
                 state.set_message(Message::warn("Confirm quit: [y]"));
                 print(state)?;
                 let key = state.term.read_key()?;
-                match key {
-                    Key::Char('y') => break,
-                    _ => (),
+                if let Key::Char('y') = key {
+                    break;
                 }
                 state.message = None;
                 print(state)?;

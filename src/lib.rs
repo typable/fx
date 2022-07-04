@@ -1,13 +1,18 @@
 use console::Color;
-use console::Term;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fmt;
-use std::fs;
-use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::SystemTime;
+
+mod config;
+mod state;
+
+pub mod error;
+
+use error::Error;
+
+pub use config::Config;
+pub use state::State;
 
 #[macro_export]
 macro_rules! color {
@@ -75,42 +80,6 @@ pub enum EntryKind {
     Symlink,
 }
 
-#[derive(Default, Serialize, Deserialize)]
-pub struct Config {
-    // The default app for opening files
-    pub default: Option<String>,
-    // The apps used for different file extensions
-    pub apps: Option<HashMap<String, Vec<String>>>,
-}
-
-impl Config {
-    pub fn acquire() -> Result<Self> {
-        match config_path() {
-            Some(config_path) => match fs::read_to_string(config_path) {
-                Ok(raw) => match toml::from_str(&raw) {
-                    Ok(config) => Ok(config),
-                    Err(err) => {
-                        return Err(Error::new(&format!("Invalid config file! Reason: {}", err)))
-                    }
-                },
-                Err(_) => Ok(Config::default()),
-            },
-            None => Err(Error::new("Unable to determine config path!")),
-        }
-    }
-    // Get app for file extension
-    pub fn get_app(&self, file_ext: &str) -> Option<String> {
-        if self.apps.is_some() {
-            for (app, exts) in self.apps.as_ref().unwrap() {
-                if exts.contains(&file_ext.to_string().to_lowercase()) {
-                    return Some(app.clone());
-                }
-            }
-        }
-        self.default.clone()
-    }
-}
-
 pub struct Message {
     text: String,
     color: Color,
@@ -143,82 +112,6 @@ impl fmt::Display for Message {
     }
 }
 
-pub struct State {
-    // The config file
-    pub config: Config,
-    // The terminal struct
-    pub term: Term,
-    // The current directory path
-    pub path: PathBuf,
-    // The current interaction mode
-    pub mode: Mode,
-    // The displayable columns
-    pub columns: Vec<Column>,
-    // The current index in the file list
-    pub index: usize,
-    // The list of files in the current directory
-    pub list: Vec<Entry>,
-    // The count of printed lines to the screen
-    pub lines: usize,
-    // The offset for printing the file list
-    pub offset: usize,
-    // The list of selected files
-    pub selected: Vec<usize>,
-    // The info message to display on screen
-    pub message: Option<Message>,
-    // The prompt title
-    pub title: Option<String>,
-    // The input field
-    pub input: Option<String>,
-    // The cursor index for the input field
-    pub cursor: usize,
-    // The flag if dotfiles should be listed
-    pub show_dotfiles: bool,
-    // The history index
-    pub history_index: usize,
-    // The history
-    pub history: HashMap<String, Vec<String>>,
-}
-
-impl State {
-    pub fn new(config: Config, path: PathBuf) -> Self {
-        Self {
-            config,
-            term: Term::stdout(),
-            path,
-            mode: Mode::Normal,
-            columns: vec![
-                Column::new("name", WIDTH),
-                Column::new("type", 10),
-                Column::new("created", 21),
-            ],
-            index: 0,
-            list: Vec::new(),
-            lines: 0,
-            offset: 0,
-            selected: Vec::new(),
-            message: None,
-            title: None,
-            input: None,
-            cursor: 0,
-            show_dotfiles: true,
-            history_index: 0,
-            history: HashMap::new(),
-        }
-    }
-    // Get currently selected entry in list
-    pub fn get_current(&self) -> Option<&Entry> {
-        if self.list.is_empty() {
-            return None;
-        }
-        Some(&self.list[self.index])
-    }
-    // Set message
-    pub fn set_message(&mut self, message: Message) {
-        self.message = Some(message);
-    }
-}
-
 #[derive(Clone)]
 pub struct Entry {
     pub file_name: String,
@@ -232,31 +125,6 @@ impl Entry {
     }
     pub fn is_file(&self) -> bool {
         EntryKind::File.eq(&self.kind)
-    }
-}
-
-#[derive(Debug)]
-pub struct Error {
-    pub message: String,
-}
-
-impl Error {
-    pub fn new(message: &str) -> Self {
-        Self {
-            message: message.to_string(),
-        }
-    }
-}
-
-impl From<io::Error> for Error {
-    fn from(error: io::Error) -> Self {
-        Self::new(&error.to_string())
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", &self.message)
     }
 }
 
@@ -291,15 +159,4 @@ pub fn expand_tilde(path: PathBuf) -> Option<PathBuf> {
         home.push(item);
     }
     Some(home)
-}
-
-fn config_path() -> Option<PathBuf> {
-    match dirs::config_dir() {
-        Some(mut config_dir) => {
-            config_dir.push(APP_NAME);
-            config_dir.push("config.toml");
-            Some(config_dir)
-        }
-        None => None,
-    }
 }
