@@ -129,6 +129,9 @@ fn do_search(state: &mut State) -> Result<()> {
                 }
             }
             move_caret(state, Move::First)?;
+            if state.selected.len() == 1 {
+                change_dir(state, FolderDir::Child)?;
+            }
         }
         Err(_) => {
             state.message = Some(Message::error("Invalid search pattern!"));
