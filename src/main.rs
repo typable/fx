@@ -493,14 +493,10 @@ fn toggle_dotfiles(state: &mut State) -> Result<()> {
 fn toggle_select(state: &mut State) -> Result<()> {
     if !state.list.is_empty() {
         let index = state.selected.iter().position(|i| i == &state.index);
-        match index {
-            Some(index) => {
-                state.selected.remove(index);
-            }
-            None => {
-                state.selected.push(state.index);
-            }
+        if index.is_some() {
+            move_caret(state, Move::Down)?;
         }
+        state.selected.push(state.index);
         print(state)?;
     }
     Ok(())
