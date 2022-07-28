@@ -75,20 +75,13 @@ fn update_loop(state: &mut State) -> Result<()> {
         let key = state.term.read_key()?;
         match key {
             Key::Char('q') => {
-                state.set_message(Message::warn("Confirm quit: [y]"));
-                print(state)?;
-                let key = state.term.read_key()?;
-                if let Key::Char('y') = key {
-                    break;
-                }
-                state.message = None;
-                print(state)?;
+                break;
             }
             Key::Char('j') => move_caret(state, Move::Down)?,
             Key::Char('k') => move_caret(state, Move::Up)?,
             Key::Char('h') => change_dir(state, FolderDir::Parent)?,
             Key::Char('l') => change_dir(state, FolderDir::Child)?,
-            Key::Char(' ') => toggle_dotfiles(state)?,
+            Key::Char('.') => toggle_dotfiles(state)?,
             Key::Char('x') => toggle_select(state)?,
             Key::Char('%') => select_all(state)?,
             Key::Char('n') => move_caret(state, Move::Next)?,
@@ -101,18 +94,16 @@ fn update_loop(state: &mut State) -> Result<()> {
                     _ => (),
                 }
             }
-            Key::Char('z') => {
-                let key = state.term.read_key()?;
-                if let Key::Char('z') = key {
-                    change_dir(state, FolderDir::Home)?;
-                }
-            }
+            Key::Char('~') => change_dir(state, FolderDir::Home)?,
             Key::Char('t') => prompt(state, "goto", &do_goto)?,
             Key::Char('/') => prompt(state, "search", &do_search)?,
+            Key::Char('r') => {
+                read_dir(state)?;
+                print(state)?;
+            }
             Key::Enter => open_file(state)?,
-            Key::Escape => {
+            Key::Char('X') => {
                 state.selected.clear();
-                state.message = None;
                 print(state)?;
             }
             _ => (),
@@ -122,9 +113,12 @@ fn update_loop(state: &mut State) -> Result<()> {
 }
 
 fn do_search(state: &mut State) -> Result<()> {
-    let input = state.input.clone().unwrap_or_default();
+    let mut input = state.input.clone().unwrap_or_default();
     if input.is_empty() {
         return Ok(());
+    }
+    if !input.starts_with('^') {
+        input = regex::escape(&input);
     }
     match Regex::new(&input) {
         Ok(re) => {
@@ -134,7 +128,6 @@ fn do_search(state: &mut State) -> Result<()> {
                     state.selected.push(i);
                 }
             }
-            set_select_message(state);
             move_caret(state, Move::First)?;
         }
         Err(_) => {
@@ -430,8 +423,7 @@ fn change_dir(state: &mut State, dir: FolderDir) -> Result<()> {
                 None => return Ok(()),
             };
             if entry.is_file() {
-                state.message = Some(Message::info("Entry is type of file!"));
-                print(state)?;
+                open_file(state)?;
                 return Ok(());
             }
             state.path.push(entry.file_name.clone());
@@ -493,14 +485,6 @@ fn toggle_dotfiles(state: &mut State) -> Result<()> {
     state.index = 0;
     state.offset = 0;
     state.selected.clear();
-    state.message = Some(Message::info(&format!(
-        "Dotfiles are {}",
-        if state.show_dotfiles {
-            "displayed"
-        } else {
-            "hidden"
-        }
-    )));
     read_dir(state)?;
     print(state)?;
     Ok(())
@@ -517,7 +501,6 @@ fn toggle_select(state: &mut State) -> Result<()> {
                 state.selected.push(state.index);
             }
         }
-        set_select_message(state);
         print(state)?;
     }
     Ok(())
@@ -529,23 +512,9 @@ fn select_all(state: &mut State) -> Result<()> {
         for i in 0..state.list.len() {
             state.selected.push(i);
         }
-        set_select_message(state);
         print(state)?;
     }
     Ok(())
-}
-
-fn set_select_message(state: &mut State) {
-    let length = state.selected.len();
-    if length == 0 {
-        state.message = None;
-        return;
-    }
-    state.message = Some(Message::info(&format!(
-        "{} {} selected",
-        length,
-        if length == 1 { "item" } else { "items" }
-    )));
 }
 
 // Reads the current directory
@@ -701,17 +670,20 @@ fn print_message(state: &mut State) -> Result<()> {
     let index = if length == 0 { 0 } else { state.index + 1 };
     match &state.message {
         Some(message) => state.term.write_line(&format!(
-            "   {:0>width$}/{}   {}",
+            "   {:0>width$}/{}   {} sel   {}",
             index,
             length,
+            state.selected.len(),
             message,
             width = digits,
         ))?,
-        None => {
-            state
-                .term
-                .write_line(&format!("   {:0>width$}/{}", index, length, width = digits))?
-        }
+        None => state.term.write_line(&format!(
+            "   {:0>width$}/{}   {} sel",
+            index,
+            length,
+            state.selected.len(),
+            width = digits
+        ))?,
     }
     Ok(())
 }
