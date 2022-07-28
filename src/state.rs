@@ -43,6 +43,8 @@ pub struct State {
     pub history_index: usize,
     // The history
     pub history: HashMap<String, Vec<String>>,
+    // The command output
+    pub output: Option<String>,
 }
 
 impl State {
@@ -66,6 +68,7 @@ impl State {
             show_dotfiles: true,
             history_index: 0,
             history: HashMap::new(),
+            output: None,
         }
     }
     // Get currently selected entry in list

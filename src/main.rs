@@ -73,6 +73,17 @@ fn init_ui(mut state: State) -> Result<()> {
 fn update_loop(state: &mut State) -> Result<()> {
     loop {
         let key = state.term.read_key()?;
+        if state.output.is_some() {
+            match key {
+                Key::Char('q') => {
+                    state.output = None;
+                    read_dir(state)?;
+                    print(state)?;
+                }
+                _ => (),
+            }
+            continue;
+        }
         match key {
             Key::Char('q') => {
                 break;
@@ -95,8 +106,9 @@ fn update_loop(state: &mut State) -> Result<()> {
                 }
             }
             Key::Char('~') => change_dir(state, FolderDir::Home)?,
-            Key::Char('t') => prompt(state, "goto", &do_goto)?,
             Key::Char('/') => prompt(state, "search", &do_search)?,
+            Key::Char('t') => prompt(state, "goto", &do_goto)?,
+            Key::Char('!') => prompt(state, "exec", &do_exec)?,
             Key::Char('r') => {
                 read_dir(state)?;
                 print(state)?;
@@ -160,6 +172,44 @@ fn do_goto(state: &mut State) -> Result<()> {
         }
         Err(_) => {
             state.message = Some(Message::error("Invalid path!"));
+        }
+    }
+    Ok(())
+}
+
+fn do_exec(state: &mut State) -> Result<()> {
+    let input = state.input.clone().unwrap_or_default();
+    if input.is_empty() {
+        return Ok(());
+    }
+    let mut args = input.split(' ');
+    let command = args.next().unwrap();
+    match Command::new(command)
+        .args(args)
+        .current_dir(&state.path)
+        .output()
+    {
+        Ok(process) => {
+            let status_code = process.status.code();
+            if status_code.is_none() {
+                state.message = Some(Message::error(&format!(
+                    "Failed to execute! Reason: Status code unknown",
+                )));
+                return Ok(());
+            }
+            state.output = Some(
+                match status_code.unwrap() {
+                    0 => String::from_utf8_lossy(&process.stdout),
+                    _ => String::from_utf8_lossy(&process.stderr),
+                }
+                .to_string(),
+            );
+        }
+        Err(err) => {
+            state.message = Some(Message::error(&format!(
+                "Failed to execute! Reason: {}",
+                err
+            )));
         }
     }
     Ok(())
@@ -564,6 +614,10 @@ fn print(state: &mut State) -> Result<()> {
     let (height, _) = state.term.size();
     let lines = height as usize - 1;
     state.term.clear_last_lines(state.lines)?;
+    if let Some(output) = &state.output {
+        state.term.write_line(output)?;
+        return Ok(());
+    }
     for i in 0..lines {
         if i == 1 {
             print_head(state)?;
