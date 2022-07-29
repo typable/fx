@@ -115,6 +115,7 @@ pub struct Entry {
     pub file_name: String,
     pub kind: EntryKind,
     pub created: Option<SystemTime>,
+    pub size: usize,
 }
 
 impl Entry {
@@ -130,6 +131,7 @@ impl Entry {
 pub enum Column {
     Name,
     Type,
+    Size,
     Created,
 }
 
@@ -138,6 +140,7 @@ impl Column {
         match *self {
             Self::Name => 40,
             Self::Type => 10,
+            Self::Size => 15,
             Self::Created => 22,
         }
     }
@@ -151,6 +154,7 @@ impl fmt::Display for Column {
             match *self {
                 Self::Name => "NAME",
                 Self::Type => "TYPE",
+                Self::Size => "SIZE",
                 Self::Created => "CREATED",
             }
         )

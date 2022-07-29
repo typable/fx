@@ -539,10 +539,12 @@ fn read_dir(state: &mut State) -> io::Result<()> {
             Ok(time) => Some(time),
             Err(_) => None,
         };
+        let size = metadata.len();
         let entry = Entry {
             file_name,
             kind,
             created,
+            size: size as usize,
         };
         match entry.kind {
             EntryKind::File => files.push(entry),
@@ -643,6 +645,9 @@ fn print_entry(state: &mut State, index: usize) -> Result<()> {
                     EntryKind::Symlink => "symlink",
                 })
                 .to_string(),
+                Column::Size => {
+                    entry.size.to_string()
+                }
                 Column::Created => match entry.created {
                     Some(time) => {
                         let datetime: DateTime<Local> = time.into();

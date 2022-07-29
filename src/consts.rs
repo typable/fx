@@ -7,4 +7,4 @@ pub const MARGIN: usize = 8;
 // The offset for navigation up/down
 pub const PADDING: usize = 2;
 // The default visible columns
-pub const COLUMNS: [Column; 3] = [Column::Name, Column::Type, Column::Created];
+pub const COLUMNS: [Column; 4] = [Column::Name, Column::Type, Column::Size, Column::Created];
