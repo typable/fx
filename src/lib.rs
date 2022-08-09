@@ -19,20 +19,20 @@ pub use state::State;
 
 #[macro_export]
 macro_rules! color {
-    ($str:expr, $fg:expr) => {
+    ($str:expr, $fg:expr$(,)?) => {
         &format!("{}", console::style($str).fg($fg))
     };
-    ($str:expr, $fg:expr, $bg:expr) => {
+    ($str:expr, $fg:expr, $bg:expr$(,)?) => {
         &format!("{}", console::style($str).fg($fg).bg($bg))
     };
 }
 
 #[macro_export]
 macro_rules! pad {
-    ($str:expr, $width:expr) => {
+    ($str:expr, $width:expr$(,)?) => {
         &format!("{: <width$}", $str, width = $width)
     };
-    ($str:expr, $width:expr, $max_width:expr) => {
+    ($str:expr, $width:expr, $max_width:expr$(,)?) => {
         &format!(
             "{: <width$}",
             if $str.len() > $max_width {
