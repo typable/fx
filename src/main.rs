@@ -63,7 +63,8 @@ fn init_ui(mut state: State) -> Result<()> {
     state.term.hide_cursor()?;
     state.term.clear_screen()?;
     read_dir(&mut state)?;
-    print(&mut state)?;
+    draw(&mut state)?;
+    // print(&mut state)?;
     update_loop(&mut state)?;
     state.term.clear_last_lines(state.lines)?;
     state.term.show_cursor()?;
@@ -557,6 +558,32 @@ fn read_dir(state: &mut State) -> io::Result<()> {
     list.extend_from_slice(&symlinks);
     list.extend_from_slice(&files);
     state.list = list;
+    Ok(())
+}
+
+fn draw(state: &mut State) -> Result<()> {
+    let (height, width) = state.term.size();
+    state.term.move_cursor_to(0, 0)?;
+    state.term.write_str(&color!(
+        format!("╭{:─<width$}╮", "", width = (width as usize) - 2),
+        Color::Color256(240),
+    ))?;
+    for y in 1..(height as usize) - 1 {
+        state.term.move_cursor_to(0, y)?;
+        state.term.write_str(&color!(
+            if y == 2 || y == (height as usize) - 3 {
+                format!("├{:─<width$}┤", "", width = (width as usize) - 2)
+            } else {
+                format!("│{: <width$}│", "", width = (width as usize) - 2)
+            },
+            Color::Color256(240),
+        ))?;
+    }
+    state.term.move_cursor_to(0, (height as usize) - 1)?;
+    state.term.write_str(&color!(
+        format!("╰{:─<width$}╯", "", width = (width as usize) - 2),
+        Color::Color256(240),
+    ))?;
     Ok(())
 }
 
