@@ -11,6 +11,7 @@ mod state;
 
 pub mod consts;
 pub mod error;
+pub mod widget;
 
 use error::Error;
 

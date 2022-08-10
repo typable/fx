@@ -1,14 +1,10 @@
-use chrono::offset::Local;
-use chrono::DateTime;
-use console::Color;
 use console::Key;
-use fx::color;
 use fx::consts::MARGIN;
 use fx::consts::PADDING;
 use fx::error::Error;
 use fx::expand_tilde;
-use fx::pad;
-use fx::Column;
+use fx::widget::Text;
+use fx::widget::Widget;
 use fx::Config;
 use fx::Entry;
 use fx::EntryKind;
@@ -62,13 +58,48 @@ fn create_state(config: Config) -> Result<State> {
 fn init_ui(mut state: State) -> Result<()> {
     state.term.hide_cursor()?;
     state.term.clear_screen()?;
+    let (height, width) = state.term.size();
+    state.window.width = width as usize;
+    state.window.height = height as usize;
+    state.path_text.pos = (2, 1);
+    state.path_text.width = (width as usize) - 4;
+    state.index_text.pos = (2, (height as usize) - 2);
+    state.index_text.width = 7;
+    state.select_text.pos = (12, (height as usize) - 2);
+    state.select_text.width = 7;
+    state.list_widget.pos = (2, 3);
+    state.list_widget.width = (width as usize) - 4;
+    state.list_widget.height = (height as usize) - 6;
+    state.lines = (height as usize) - 6;
     read_dir(&mut state)?;
-    draw(&mut state)?;
+    state.window.draw(&state.term)?;
+    update_path_text(&mut state);
+    state.path_text.draw(&state.term)?;
+    update_index_text(&mut state);
+    state.index_text.draw(&state.term)?;
+    update_select_text(&mut state);
+    state.select_text.draw(&state.term)?;
+    state.list_widget.draw(&state.term)?;
     // print(&mut state)?;
     update_loop(&mut state)?;
     state.term.clear_last_lines(state.lines)?;
     state.term.show_cursor()?;
     Ok(())
+}
+
+fn update_path_text(state: &mut State) {
+    state.path_text.text = state.path.display().to_string();
+}
+
+fn update_index_text(state: &mut State) {
+    let length = state.list.len();
+    // let digits = length.to_string().len();
+    let index = if length == 0 { 0 } else { state.index + 1 };
+    state.index_text.text = format!("{:0>len$}/{:0>len$}", index, length, len = 3);
+}
+
+fn update_select_text(state: &mut State) {
+    state.select_text.text = format!("{} sel", state.selected.len());
 }
 
 fn update_loop(state: &mut State) -> Result<()> {
@@ -161,6 +192,12 @@ fn do_goto(state: &mut State) -> Result<()> {
             state.message = None;
             state.selected.clear();
             read_dir(state)?;
+            update_path_text(state);
+            state.path_text.draw(&state.term)?;
+            update_index_text(state);
+            state.index_text.draw(&state.term)?;
+            update_select_text(state);
+            state.select_text.draw(&state.term)?;
         }
         Err(_) => {
             state.message = Some(Message::error("Invalid path!"));
@@ -405,6 +442,10 @@ fn move_caret(state: &mut State, movement: Move) -> Result<()> {
             }
         }
     }
+    update_index_text(state);
+    state.index_text.draw(&state.term)?;
+    state.list_widget.index = state.index;
+    state.list_widget.draw(&state.term)?;
     Ok(())
 }
 
@@ -450,6 +491,12 @@ fn change_dir(state: &mut State, dir: FolderDir) -> Result<()> {
             }
         }
     }
+    update_path_text(state);
+    state.path_text.draw(&state.term)?;
+    update_index_text(state);
+    state.index_text.draw(&state.term)?;
+    update_select_text(state);
+    state.select_text.draw(&state.term)?;
     Ok(())
 }
 
@@ -502,6 +549,8 @@ fn toggle_select(state: &mut State) -> Result<()> {
         }
         state.selected.push(state.index);
         print(state)?;
+        update_select_text(state);
+        state.select_text.draw(&state.term)?;
     }
     Ok(())
 }
@@ -513,6 +562,8 @@ fn select_all(state: &mut State) -> Result<()> {
             state.selected.push(i);
         }
         print(state)?;
+        update_select_text(state);
+        state.select_text.draw(&state.term)?;
     }
     Ok(())
 }
@@ -558,163 +609,156 @@ fn read_dir(state: &mut State) -> io::Result<()> {
     list.extend_from_slice(&symlinks);
     list.extend_from_slice(&files);
     state.list = list;
+    let mut items = Vec::new();
+    for item in &state.list {
+        items.push(Text {
+            pos: (0, 0),
+            width: 0,
+            text: item.file_name.clone(),
+        });
+    }
+    state.list_widget.items = items;
+    state.list_widget.init();
+    state.list_widget.draw(&state.term).unwrap();
     Ok(())
 }
 
-fn draw(state: &mut State) -> Result<()> {
-    let (height, width) = state.term.size();
-    state.term.move_cursor_to(0, 0)?;
-    state.term.write_str(&color!(
-        format!("╭{:─<width$}╮", "", width = (width as usize) - 2),
-        Color::Color256(240),
-    ))?;
-    for y in 1..(height as usize) - 1 {
-        state.term.move_cursor_to(0, y)?;
-        state.term.write_str(&color!(
-            if y == 2 || y == (height as usize) - 3 {
-                format!("├{:─<width$}┤", "", width = (width as usize) - 2)
-            } else {
-                format!("│{: <width$}│", "", width = (width as usize) - 2)
-            },
-            Color::Color256(240),
-        ))?;
-    }
-    state.term.move_cursor_to(0, (height as usize) - 1)?;
-    state.term.write_str(&color!(
-        format!("╰{:─<width$}╯", "", width = (width as usize) - 2),
-        Color::Color256(240),
-    ))?;
-    Ok(())
-}
+// fn draw(state: &mut State) -> Result<()> {
+//     if let Some(window) = &mut state.window {
+//         window.draw(&state.term)?;
+//     }
+//     Ok(())
+// }
 
 // Prints the current directory entries to the screen
-fn print(state: &mut State) -> Result<()> {
-    let (height, _) = state.term.size();
-    let lines = height as usize - 1;
-    state.term.clear_last_lines(state.lines)?;
-    for i in 0..lines {
-        if i == 1 {
-            print_head(state)?;
-            continue;
-        }
-        if i == 3 {
-            state.term.write_str("   ")?;
-            for column in &state.columns {
-                let width = column.get_width();
-                state
-                    .term
-                    .write_str(pad!(&format!("{}", column), width, width - 2))?;
-            }
-        }
-        if i == 4 {
-            let mut total_width = 0;
-            for column in &state.columns {
-                total_width += column.get_width();
-            }
-            state
-                .term
-                .write_str(&format!("   {}", "-".repeat(total_width)))?;
-        }
-        if i > 4 && i < lines - 2 {
-            let index = i - 5 + state.offset;
-            if state.list.len() > index {
-                print_entry(state, index)?;
-                continue;
-            }
-        }
-        if i == lines - 1 {
-            print_message(state)?;
-            continue;
-        }
-        state.term.write_line("")?;
-    }
-    state.lines = lines;
+fn print(_state: &mut State) -> Result<()> {
+    // draw(state)?;
+    // let (height, _) = state.term.size();
+    // let lines = height as usize - 1;
+    // state.term.clear_last_lines(state.lines)?;
+    // for i in 0..lines {
+    //     if i == 1 {
+    //         print_head(state)?;
+    //         continue;
+    //     }
+    //     if i == 3 {
+    //         state.term.write_str("   ")?;
+    //         for column in &state.columns {
+    //             let width = column.get_width();
+    //             state
+    //                 .term
+    //                 .write_str(pad!(&format!("{}", column), width, width - 2))?;
+    //         }
+    //     }
+    //     if i == 4 {
+    //         let mut total_width = 0;
+    //         for column in &state.columns {
+    //             total_width += column.get_width();
+    //         }
+    //         state
+    //             .term
+    //             .write_str(&format!("   {}", "-".repeat(total_width)))?;
+    //     }
+    //     if i > 4 && i < lines - 2 {
+    //         let index = i - 5 + state.offset;
+    //         if state.list.len() > index {
+    //             print_entry(state, index)?;
+    //             continue;
+    //         }
+    //     }
+    //     if i == lines - 1 {
+    //         print_message(state)?;
+    //         continue;
+    //     }
+    //     state.term.write_line("")?;
+    // }
+    // state.lines = lines;
     Ok(())
 }
 
-fn print_head(state: &mut State) -> Result<()> {
-    match state.mode {
-        Mode::Normal => {
-            let path = state.path.display().to_string();
-            state.term.write_line(&format!("   {}", path))?;
-        }
-        Mode::Prompt => {
-            state.term.write_line(&format!(
-                "   {}:{}",
-                state.title.clone().unwrap_or_default(),
-                state.input.clone().unwrap_or_default(),
-            ))?;
-        }
-    }
-    Ok(())
-}
+// fn print_head(state: &mut State) -> Result<()> {
+//     match state.mode {
+//         Mode::Normal => {
+//             let path = state.path.display().to_string();
+//             state.term.write_line(&format!("   {}", path))?;
+//         }
+//         Mode::Prompt => {
+//             state.term.write_line(&format!(
+//                 "   {}:{}",
+//                 state.title.clone().unwrap_or_default(),
+//                 state.input.clone().unwrap_or_default(),
+//             ))?;
+//         }
+//     }
+//     Ok(())
+// }
 
-fn print_entry(state: &mut State, index: usize) -> Result<()> {
-    let entry = &state.list[index];
-    if state.mode == Mode::Normal && state.index == index {
-        state.term.write_str(" > ")?;
-    } else {
-        state.term.write_str("   ")?;
-    };
-    let color = match entry.kind {
-        EntryKind::File => Color::White,
-        EntryKind::Dir => Color::Blue,
-        EntryKind::Symlink => Color::Magenta,
-    };
-    for column in &state.columns {
-        let width = column.get_width();
-        let value = pad!(
-            match column {
-                Column::Name => entry.file_name.clone(),
-                Column::Type => (match entry.kind {
-                    EntryKind::File => "file",
-                    EntryKind::Dir => "dir",
-                    EntryKind::Symlink => "symlink",
-                })
-                .to_string(),
-                Column::Size => {
-                    entry.size.to_string()
-                }
-                Column::Created => match entry.created {
-                    Some(time) => {
-                        let datetime: DateTime<Local> = time.into();
-                        datetime.format("%d.%m.%Y %I:%M %P").to_string()
-                    }
-                    None => "".to_string(),
-                },
-            },
-            width,
-            width - 2
-        );
-        match state.selected.contains(&index) {
-            true => state.term.write_str(color!(&value, Color::Black, color))?,
-            false => state.term.write_str(color!(&value, color))?,
-        };
-    }
-    state.term.write_line("")?;
-    Ok(())
-}
+// fn print_entry(state: &mut State, index: usize) -> Result<()> {
+//     let entry = &state.list[index];
+//     if state.mode == Mode::Normal && state.index == index {
+//         state.term.write_str(" > ")?;
+//     } else {
+//         state.term.write_str("   ")?;
+//     };
+//     let color = match entry.kind {
+//         EntryKind::File => Color::White,
+//         EntryKind::Dir => Color::Blue,
+//         EntryKind::Symlink => Color::Magenta,
+//     };
+//     for column in &state.columns {
+//         let width = column.get_width();
+//         let value = pad!(
+//             match column {
+//                 Column::Name => entry.file_name.clone(),
+//                 Column::Type => (match entry.kind {
+//                     EntryKind::File => "file",
+//                     EntryKind::Dir => "dir",
+//                     EntryKind::Symlink => "symlink",
+//                 })
+//                 .to_string(),
+//                 Column::Size => {
+//                     entry.size.to_string()
+//                 }
+//                 Column::Created => match entry.created {
+//                     Some(time) => {
+//                         let datetime: DateTime<Local> = time.into();
+//                         datetime.format("%d.%m.%Y %I:%M %P").to_string()
+//                     }
+//                     None => "".to_string(),
+//                 },
+//             },
+//             width,
+//             width - 2
+//         );
+//         match state.selected.contains(&index) {
+//             true => state.term.write_str(color!(&value, Color::Black, color))?,
+//             false => state.term.write_str(color!(&value, color))?,
+//         };
+//     }
+//     state.term.write_line("")?;
+//     Ok(())
+// }
 
-fn print_message(state: &mut State) -> Result<()> {
-    let length = state.list.len();
-    let digits = length.to_string().len();
-    let index = if length == 0 { 0 } else { state.index + 1 };
-    match &state.message {
-        Some(message) => state.term.write_line(&format!(
-            "   {:0>width$}/{}   {} sel   {}",
-            index,
-            length,
-            state.selected.len(),
-            message,
-            width = digits,
-        ))?,
-        None => state.term.write_line(&format!(
-            "   {:0>width$}/{}   {} sel",
-            index,
-            length,
-            state.selected.len(),
-            width = digits
-        ))?,
-    }
-    Ok(())
-}
+// fn print_message(state: &mut State) -> Result<()> {
+//     let length = state.list.len();
+//     let digits = length.to_string().len();
+//     let index = if length == 0 { 0 } else { state.index + 1 };
+//     match &state.message {
+//         Some(message) => state.term.write_line(&format!(
+//             "   {:0>width$}/{}   {} sel   {}",
+//             index,
+//             length,
+//             state.selected.len(),
+//             message,
+//             width = digits,
+//         ))?,
+//         None => state.term.write_line(&format!(
+//             "   {:0>width$}/{}   {} sel",
+//             index,
+//             length,
+//             state.selected.len(),
+//             width = digits
+//         ))?,
+//     }
+//     Ok(())
+// }

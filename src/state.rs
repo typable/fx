@@ -2,6 +2,9 @@ use std::{collections::HashMap, path::PathBuf};
 
 use console::Term;
 
+use crate::widget::List;
+use crate::widget::Text;
+use crate::widget::Window;
 use crate::Column;
 use crate::Config;
 use crate::Entry;
@@ -43,6 +46,16 @@ pub struct State {
     pub history_index: usize,
     // The history
     pub history: HashMap<String, Vec<String>>,
+    // The window
+    pub window: Window,
+    // The path text
+    pub path_text: Text,
+    // The index text
+    pub index_text: Text,
+    // The select text
+    pub select_text: Text,
+    // The list widget
+    pub list_widget: List,
 }
 
 impl State {
@@ -66,6 +79,33 @@ impl State {
             show_dotfiles: true,
             history_index: 0,
             history: HashMap::new(),
+            window: Window {
+                pos: (0, 0),
+                width: 0,
+                height: 0,
+            },
+            path_text: Text {
+                pos: (0, 0),
+                width: 0,
+                text: String::new(),
+            },
+            index_text: Text {
+                pos: (0, 0),
+                width: 0,
+                text: String::new(),
+            },
+            select_text: Text {
+                pos: (0, 0),
+                width: 0,
+                text: String::new(),
+            },
+            list_widget: List {
+                pos: (0, 0),
+                width: 0,
+                height: 0,
+                index: 0,
+                items: Vec::new(),
+            },
         }
     }
     // Get currently selected entry in list
